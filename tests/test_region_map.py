@@ -298,6 +298,14 @@ def test_build_payload_shape_total_coverage():
         assert s["is_best"] is False
 
 
+def test_build_forwards_domain_boundary_flag() -> None:
+    rows = [_row(domain_boundary=True), _row(lon=90.0, domain_boundary=False)]
+    out = build_region_map(rows, search_partial=False)
+    by_lon = {round(s["lon_deg"]): s["domain_boundary"] for s in out["samples"]}
+    assert by_lon[round(SITE_LON)] is True
+    assert by_lon[90] is False
+
+
 def test_build_rgba_matches_sample_rgba():
     rows = [
         _row(lon=0.0, score=0.7, feasible=True),

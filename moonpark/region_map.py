@@ -227,6 +227,7 @@ def build_region_map(
             "rgba": list(rgba),
             "is_best": _is_best_match(row, best),
             "marker_t": marker_t,
+            "domain_boundary": bool(row.get("domain_boundary", False)),
         }
         samples.append(sample)
 

@@ -229,6 +229,7 @@ type DeepRow = {
   feasible: boolean;
   score: number;
   companion_score: number;
+  domain_boundary?: boolean;
 };
 
 /**
@@ -361,10 +362,13 @@ export async function runRegionSearch(
     score: r.score,
     feasible: r.feasible,
     companion_score: r.companion_score,
+    domain_boundary: Boolean(r.domain_boundary),
   }));
   const best = body.best?.site
     ? { lat_deg: body.best.site.lat_deg, lon_deg: body.best.site.lon_deg }
     : null;
+  const bestDomainBoundary = Boolean((body.best as DeepRow | undefined)?.domain_boundary);
+  const boundaryCells = rows.filter((r) => r.domain_boundary).length;
   const warnings = (Array.isArray(body.warnings) ? body.warnings : [])
     .filter((w: unknown): w is SearchWarning => !!w && typeof (w as SearchWarning).message === "string")
     .map((w: SearchWarning) => ({ ...w, code: String(w.code ?? "") }));
@@ -385,6 +389,8 @@ export async function runRegionSearch(
     request,
     rows,
     best,
+    best_domain_boundary: bestDomainBoundary,
+    boundary_cells: boundaryCells,
   };
   storeRegionMapRows(summary);
   return summary;

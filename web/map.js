@@ -577,7 +577,13 @@ function showReadout(sample, pinned) {
   $("readout-chip").style.opacity = est ? "0.6" : "1";
   $("readout-title").textContent = est
     ? "Estimate — not scored"
-    : sample.is_best ? "Best evaluated cell" : "Evaluated cell";
+    : sample.is_best
+      ? sample.domain_boundary
+        ? "Best · domain-edge cell"
+        : "Best evaluated cell"
+      : sample.domain_boundary
+        ? "Evaluated · domain edge"
+        : "Evaluated cell";
   $("readout-lat").textContent = fmtLat(sample.lat_deg);
   $("readout-lon").textContent = fmtLon(sample.lon_deg);
   $("readout-score-label").textContent = est ? "Estimated score" : "Score";
@@ -589,7 +595,12 @@ function showReadout(sample, pinned) {
       (pinned ? " — open it in the planner to score it." : ". Click to pin.")
     : !sample.feasible && sample.marker_t != null
       ? `Does not meet the mission needs. Relative badness in this query: ${Math.round(100 * (1 - sample.marker_t))} %.`
-      : pinned ? "" : "Click to pin this cell.";
+      : sample.domain_boundary
+        ? (pinned ? "" : "Click to pin. ") +
+          "Domain-edge cell: its ~1 km footprint touches your search rectangle; score is the full evaluation at this index node."
+        : pinned
+          ? ""
+          : "Click to pin this cell.";
   $("readout-note").hidden = !$("readout-note").textContent;
   $("open-planner").textContent = est ? "Evaluate in planner" : "Open in planner";
   $("readout-actions").hidden = !pinned;

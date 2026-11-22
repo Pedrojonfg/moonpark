@@ -431,6 +431,11 @@ export function RegionMapScreen({ form, onOpenSite, resume = null, onResumeHandl
             ) : (
               summary.provisional && <Tag minimal intent="warning">provisional</Tag>
             )}
+            {summary.best_domain_boundary && (
+              <Tag minimal intent="warning" title="Score is a full evaluation at this index node; the 1 km cell also touches your rectangle edge.">
+                best on domain edge
+              </Tag>
+            )}
           </>
         ) : demo ? (
           <span>Demo samples — five hand-placed rows, not a search result.</span>

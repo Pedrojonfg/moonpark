@@ -244,8 +244,18 @@ export type RegionSearchSummary = {
   /** Exact body sent; a resume must repeat it (the checkpoint is tied to range, window, mode and requirements). */
   request: DeepSearchRequest;
   /** Rows evaluated so far, as handed to the region map. */
-  rows: Array<{ lat_deg: number; lon_deg: number; score: number; feasible: boolean; companion_score: number }>;
+  rows: Array<{
+    lat_deg: number;
+    lon_deg: number;
+    score: number;
+    feasible: boolean;
+    companion_score: number;
+    domain_boundary?: boolean;
+  }>;
   best: { lat_deg: number; lon_deg: number } | null;
+  /** Top row sits on a cap cell whose footprint touches the search rectangle (D-ae04, D-d254). */
+  best_domain_boundary?: boolean;
+  boundary_cells?: number;
 };
 
 /** What a "Continue" of a stopped search hands the region map. */
