@@ -67,3 +67,7 @@ Announced architectures: deferred, as I said. The per-system test list: I accept
 
 - No platform is claimed in the README until it is tested; today's README text must be aligned at release.
 - A tested-installer record per OS (what was run, which version, result) is needed before announcing.
+
+## Later (2026-11-22, `D-20261122-pj-a91c`)
+
+pj: no Mac hardware; weak local Win/Linux. **Claims** per OS follow **install-acceptance CI** (not maintainer manual walkthrough). **macOS**: installer may ship; **no** "tested/supported" claim + required disclaimer. See `D-a91c` for the active gate.

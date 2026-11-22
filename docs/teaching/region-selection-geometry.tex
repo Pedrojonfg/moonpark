@@ -1,0 +1,186 @@
+% Region selection for MoonPark cap search — teaching figures.
+% Compile: latexmk -pdf region-selection-geometry.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath}
+\usepackage{geometry}
+\geometry{margin=2.2cm}
+\usepackage{tikz}
+\usetikzlibrary{babel,calc,positioning,arrows.meta,shapes.geometric,fit,backgrounds,decorations.pathreplacing}
+
+\title{Selección geográfica en búsqueda regional\\\large Esquemas (no escala real)}
+\author{MoonPark / decision-flow T-20261122-pj-b94d}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Lectura rápida}
+El motor no evalúa \textbf{puntos continuos} en la Luna: evalúa \textbf{celdas} del índice 1\,km.
+Un rectángulo lat/lon del usuario es una región en la esfera; el código actual la aproxima con un
+rectángulo en coordenadas \textbf{estereográficas} $(x,y)$ en metros.
+
+\section{Discreto vs continuo}
+\begin{center}
+\begin{tikzpicture}[x=1.2cm,y=1.2cm]
+  \begin{scope}
+    \draw[thick] (0,0) rectangle (6,3.2);
+    \foreach \x in {0,...,6} {
+      \foreach \y in {0,...,3} {
+        \fill[blue!35] (\x+0.5,\y+0.5) circle (0.22);
+      }
+    }
+    \draw[red,very thick] (1.1,0.6) rectangle (5.2,2.6);
+    \node[align=center,font=\small] at (3.1,-0.55) {Rectángulo \textbf{continuo} lat/lon (ideal)};
+    \node[align=center,font=\small,red] at (5.4,2.85) {zona usuario};
+  \end{scope}
+  \node at (7.2,1.6) {$\Rightarrow$};
+  \begin{scope}[xshift=8.4cm]
+    \draw[thick] (0,0) rectangle (6,3.2);
+    \foreach \x in {0,...,6} {
+      \foreach \y in {0,...,3} {
+        \fill[blue!15] (\x+0.5,\y+0.5) circle (0.22);
+      }
+    }
+    % Celdas con centro dentro del rectángulo rojo (ilustración)
+    \foreach \x in {2,3,4,5} {
+      \foreach \y in {1,2} {
+        \fill[blue!75] (\x+0.5,\y+0.5) circle (0.22);
+      }
+    }
+    \draw[red,very thick] (1.1,0.6) rectangle (5.2,2.6);
+    \node[align=center,font=\small] at (3.1,-0.55) {Mismo rectángulo con \textbf{celdas 1\,km}};
+    \node[align=center,font=\small] at (3.1,3.55) {¿incluir celda si el \textbf{centro} cae dentro?};
+    \node[align=center,font=\small] at (3.1,3.95) {¿o si la \textbf{huella} $\sim$1\,km \textbf{toca} el borde?};
+  \end{scope}
+\end{tikzpicture}
+\end{center}
+
+\section{Proyección polar estereográfica (idea)}
+Cerca del polo sur, las longitudes convergen. En el plano $(x,y)$ un rectángulo en lat/lon
+\textbf{no} es, en general, otro rectángulo alineado a ejes.
+
+\begin{center}
+\begin{tikzpicture}[scale=1.05]
+  % Sphere cap (schematic side view)
+  \draw[thick] (0,0) arc (180:360:2.2cm);
+  \draw[thick,dashed] (-2.2,0) -- (2.2,0);
+  \fill[gray!12] (0,0) -- (-2.2,0) arc (180:360:2.2cm) -- cycle;
+  \node[font=\small] at (0,-0.35) {polo sur (esquema)};
+  \draw[blue!70!black,thick] (-1.5,0.05) arc (200:340:1.55cm);
+  \node[blue!70!black,font=\small,align=center] at (-2.9,0.9) {casquete\\lat $\leq -80^\circ$};
+
+  \draw[->,thick] (2.8,1.2) -- (4.8,1.2) node[midway,above,font=\small] {estereográfica};
+  \draw[->,thick] (2.8,0.5) -- (4.8,0.5) node[midway,below,font=\small] {``aplanar'' cap};
+
+  % Stereo plane
+  \begin{scope}[xshift=5.3cm,yshift=0.2cm]
+    \draw[thick] (0,0) circle (2.1);
+    \node[font=\small] at (0,-2.55) {plano $(x,y)$ [m]};
+    \foreach \a in {0,45,...,315} {
+      \draw[gray!50] (0,0) -- ({\a}:2.1);
+    }
+    \node[font=\tiny,gray] at ({20}:2.35) {lon};
+    \draw[blue!70!black,thick] (0.35,0.35) arc (45:225:0.55cm);
+    \node[blue!70!black,font=\small] at (1.2,1.5) {mismo casquete};
+  \end{scope}
+\end{tikzpicture}
+\end{center}
+
+\section{Cómo funciona hoy (\texttt{sites\_in\_latlon\_rect})}
+\begin{enumerate}
+  \item Esquinas (y puntos medios) del rectángulo lat/lon $\rightarrow$ $(x,y)$.
+  \item Caja axis-aligned $[x_{\min},x_{\max}]\times[y_{\min},y_{\max}]$.
+  \item Filtrar índice por $(x,y)$; luego filtro lat/lon (incl.\ wrap $0^\circ/360^\circ$).
+\end{enumerate}
+
+\begin{center}
+\begin{tikzpicture}[scale=1.0]
+  \draw[step=0.35cm,gray!25,thin] (0,0) grid (7.5,5.5);
+  \draw[thick] (0,0) rectangle (7.5,5.5);
+  \node[font=\small] at (3.75,5.85) {plano estereográfico (esquema)};
+
+  % True region (curved quadrilateral - schematic)
+  \coordinate (a) at (1.4,1.0);
+  \coordinate (b) at (6.3,1.5);
+  \coordinate (c) at (5.9,4.3);
+  \coordinate (d) at (1.8,3.8);
+  \fill[blue!12] (a)--(b)--(c)--(d)--cycle;
+  \draw[blue,thick] (a)--(b)--(c)--(d)--cycle;
+  \node[blue,font=\small,align=center] at (3.9,2.6) {región lat/lon\\(verdadera en $(x,y)$)};
+
+  % AABB from corners
+  \draw[orange,very thick,dashed] (1.4,1.0) rectangle (6.3,4.3);
+  \node[orange!90!black,font=\small,align=left] at (6.55,4.55) {AABB de\\esquinas};
+
+  % Missed cell (inside blue, outside orange - impossible if orange contains all corners of blue...
+  % Actually missed: inside true region, outside AABB - place at concave-ish spot)
+  \fill[red!80!black] (1.15,2.4) circle (0.13);
+  \node[red!80!black,font=\small,align=center] at (0.55,2.4) {celda\\omitida};
+
+  % False positive outside true region but inside AABB
+  \fill[orange!80!black] (6.1,2.0) circle (0.13);
+  \node[orange!80!black,font=\tiny,align=center] at (6.1,1.55) {falso $+$\\(2.\,filtro)};
+
+  \draw[decorate,decoration={brace,mirror,amplitude=6pt}] (0,-0.15) -- (7.5,-0.15);
+  \node[font=\small] at (3.75,-0.55) {riesgo audit: \textbf{omitidas} si AABB es demasiado pequeño (polo / regiones anchas)};
+\end{tikzpicture}
+\end{center}
+
+\section{Alternativas (no implementadas; comparación conceptual)}
+
+\begin{center}
+\begin{tikzpicture}[
+  box/.style={draw,rounded corners,align=center,font=\small,minimum width=3.6cm,minimum height=1.05cm},
+  arr/.style={-{Stealth[length=2.2mm]},thick}
+]
+  \node[box,fill=green!12] (ref) {A) \textbf{Referencia}\\ recorrer todo el índice\\filtro lat/lon exacto};
+  \node[box,fill=yellow!18,right=1.1cm of ref] (now) {B) \textbf{Hoy}\\ AABB $(x,y)$ + filtro};
+  \node[box,fill=blue!12,right=1.1cm of now] (touch) {C) \textbf{Huella}\\ centro dentro \textbf{o}\\ disco $\sim$1\,km toca rect.};
+  \node[box,fill=purple!10,below=1.1cm of touch] (refine) {D) \textbf{Refino en borde}\\ si el mejor cae en celda frontera\\máscara/resolución mayor};
+
+  \draw[arr] (ref) -- node[above,font=\tiny]{mismo conjunto si B es correcto} (now);
+  \draw[arr] (now) -- node[above,font=\tiny]{criterio más amplio} (touch);
+  \draw[arr] (touch) -- node[right,font=\tiny]{post-proceso} (refine);
+
+  \node[align=left,font=\small,text width=11cm] at ($(ref.south)!0.5!(refine.south) + (0,-1.35)$) {
+    \textbf{Weierstrass (aclaración):} en un conjunto \textbf{finito} de celdas siempre hay un máximo de score;
+    no hace falta el teorema para existencia. La idea útil aquí es otra: el óptimo \textbf{discreto} puede
+    sentarse en una celda del borde por culpa de la malla gruesa; entonces conviene \textbf{refinar} localmente
+    (máscara fina, punto continuo cercano) para ver si el verdadero mejor está justo fuera del rectángulo.
+  };
+\end{tikzpicture}
+\end{center}
+
+\section{Región ``toca el borde'' (huella de celda)}
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+  \draw[red,very thick] (0,0) rectangle (6,4);
+  \node[red,font=\small] at (3,4.25) {rectángulo usuario};
+
+  % center inside
+  \draw[blue,thick] (2.2,2.1) circle (0.55);
+  \fill[blue!70] (2.2,2.1) circle (0.06);
+  \node[blue,font=\small] at (2.2,1.2) {centro dentro $\Rightarrow$ incluir};
+
+  % center outside, disk touches
+  \draw[blue,thick] (5.35,2.0) circle (0.55);
+  \fill[blue!70] (5.35,2.0) circle (0.06);
+  \node[blue,font=\small,align=center] at (5.35,0.9) {centro fuera\\pero huella toca $\Rightarrow$ ¿incluir?};
+
+  % center outside, no touch
+  \draw[blue!40,thick,dashed] (5.35,3.35) circle (0.4);
+  \fill[blue!40] (5.35,3.35) circle (0.05);
+  \node[gray,font=\small] at (4.6,3.35) {excluir};
+\end{tikzpicture}
+\end{center}
+
+\section{Criterio de cierre propuesto (audit)}
+Test de equivalencia: conjunto de celdas de (B) o (C) acordado = conjunto de (A).
+Solo entonces anunciar ``óptimo de la cuadrícula'' en modo exhaustivo.
+
+\vspace{0.8em}
+\noindent\textit{Archivo generado para estudio; no es decisión registrada. Ver \texttt{T-20261122-pj-b94d}.}
+\end{document}
