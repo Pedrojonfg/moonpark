@@ -33,6 +33,42 @@ def test_short_night_script_dry_run(tmp_path: Path) -> None:
     assert data["status"] in {"SKIP_NO_DEM", "HARNESS_READY_AWAITING_OVERNIGHT"}
 
 
+def test_short_night_checkpoint_resume(tmp_path: Path) -> None:
+    cp = tmp_path / "short.cp.json"
+    out = tmp_path / "short.json"
+    r1 = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "s12_short_night_recheck.py"),
+            "--json-out",
+            str(out),
+            "--checkpoint",
+            str(cp),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r1.returncode == 0, r1.stderr
+    assert cp.is_file()
+    r2 = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "s12_short_night_recheck.py"),
+            "--resume",
+            "--checkpoint",
+            str(cp),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r2.returncode == 0, r2.stderr
+    assert "D-20261115-pj-39f3" in r2.stdout
+
+
 def test_pgda69_script_dry_run(tmp_path: Path) -> None:
     out = tmp_path / "pgda.json"
     r = subprocess.run(

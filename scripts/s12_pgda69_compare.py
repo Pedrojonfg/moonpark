@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "docs" / "validation.md"
+SCRIPT_ID = "s12_pgda69_compare"
 
 
 def _find_pgda69() -> Path | None:
@@ -42,7 +43,17 @@ def main() -> int:
         action="store_true",
         help="fail (exit 2) when PGDA 69 file is missing instead of SKIP success",
     )
+    p.add_argument("--checkpoint", type=Path, default=None, help="resumable progress file (D-814a)")
+    p.add_argument("--resume", action="store_true", help="continue from --checkpoint when present")
     args = p.parse_args()
+
+    sys.path.insert(0, str(ROOT))
+    from scripts.validation_checkpoint import load_checkpoint, save_checkpoint
+
+    prior = load_checkpoint(args.checkpoint) if args.resume else None
+    if prior and prior.get("script") == SCRIPT_ID and prior.get("status") == "complete":
+        print(json.dumps(prior.get("payload") or prior, indent=2))
+        return 0
 
     pgda = _find_pgda69()
     status = "SKIP_NO_PGDA69_FILE" if pgda is None else "HARNESS_READY_AWAITING_OVERNIGHT"
@@ -67,6 +78,17 @@ def main() -> int:
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    save_checkpoint(
+        args.checkpoint,
+        {
+            "version": 1,
+            "script": SCRIPT_ID,
+            "status": "complete" if status != "HARNESS_READY_AWAITING_OVERNIGHT" else "stub",
+            "next_site_index": 0,
+            "payload": payload,
+        },
+    )
 
     print(json.dumps(payload, indent=2))
     print(f"\n# Do not claim README 'validated with PGDA 69' until deltas are filled ({VALIDATION}).", file=sys.stderr)

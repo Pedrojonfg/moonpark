@@ -95,7 +95,7 @@ None.
 
 ## Build
 
-_All audit themes 1–7 decided (2026-11-22). Implementation pass not started._
+2026-11-22 implementation pass (main, ahead of origin): §1 region oracle + boundary UI; §7 shared `evaluate_site_window`; §3/§5 session memory + `compute_identity`; §6 install-acceptance smoke + `docs/install-acceptance.md`; §2 `validation_full` marker/workflow; regression tests (`test_reliability_build`, `test_evaluate_parity`, cap oracle property, Horizons ≥8 cases per D-c403); S12 checkpoint stubs (D-814a). Pending: overnight S12 numbers in `validation.md`, temporal/spatial convergence runs, optional LaTeX build-artifact cleanup from decide commit.
 
 ## Audit
 

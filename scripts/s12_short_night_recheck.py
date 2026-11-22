@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "docs" / "validation.md"
 SITE01 = {"name": "Site01", "lat_deg": -89.46316, "lon_deg": 222.51045}
+SCRIPT_ID = "s12_short_night_recheck"
 
 
 def main() -> int:
@@ -33,7 +34,17 @@ def main() -> int:
         action="store_true",
         help="fail (exit 2) when DEM is missing instead of SKIP success",
     )
+    p.add_argument("--checkpoint", type=Path, default=None, help="resumable progress file (D-814a)")
+    p.add_argument("--resume", action="store_true", help="continue from --checkpoint when present")
     args = p.parse_args()
+
+    sys.path.insert(0, str(ROOT))
+    from scripts.validation_checkpoint import load_checkpoint, save_checkpoint
+
+    prior = load_checkpoint(args.checkpoint) if args.resume else None
+    if prior and prior.get("script") == SCRIPT_ID and prior.get("status") == "complete":
+        print(json.dumps(prior, indent=2))
+        return 0
 
     dem = ROOT / "data" / "dem"
     has_dem = dem.is_dir() and any(dem.glob("*.TIF"))
@@ -60,6 +71,17 @@ def main() -> int:
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    save_checkpoint(
+        args.checkpoint,
+        {
+            "version": 1,
+            "script": SCRIPT_ID,
+            "status": "complete" if status != "HARNESS_READY_AWAITING_OVERNIGHT" else "stub",
+            "next_site_index": len(payload["sites"]) if status == "complete" else 0,
+            "payload": payload,
+        },
+    )
 
     print(json.dumps(payload, indent=2))
     print(f"\n# Update {VALIDATION} Results section after a real overnight compute.", file=sys.stderr)

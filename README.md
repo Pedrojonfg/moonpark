@@ -133,7 +133,11 @@ Details and how to run each check: [`docs/validation.md`](docs/validation.md).
   development you can still run `deploy/run-local.sh` (API with auto-reload
   plus the UI dev server). Installers for Linux, Windows and macOS are in the
   [v0.1.0 release](https://github.com/Pedrojonfg/moonpark/releases/tag/v0.1.0)
-  (unsigned; Windows and macOS have not been run on real machines yet).
+  (unsigned). **Linux and Windows** may be called supported only when the
+  matching [install-acceptance CI](docs/install-acceptance.md) leg is green on
+  that release. **macOS:** an installer may ship when CI builds it; there is no
+  claim that a maintainer tested on real Mac hardware — engine smoke on
+  `macos-latest` is not the same as a user install walkthrough (`D-a91c`).
 - **The 3D view defaults to our own LOLA relief** (procedural surface, no token).
   A free Cesium ion token with *Cesium Moon Terrain* (asset 2684829) is optional
   for the textured ion backdrop. Without own relief and without a token you get
@@ -213,8 +217,8 @@ The ion tileset is also the automatic fallback when a site has no DEM on disk.
 
 ## What's next
 
-- **Try the installers on Windows and macOS** (CI builds them; they have not
-  been run on real machines yet) and, later, code signing.
+- **Install-acceptance CI** on each release tag (`docs/install-acceptance.md`);
+  optional manual Win/Mac UI checks; code signing later.
 - **Finer masks over the whole cap:** move from 1 km to 100 m spacing over
   the full south polar cap.
 - **Browser demo with real data:** the browser demo is still mocked; the
