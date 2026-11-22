@@ -33,7 +33,7 @@ SITES = {
     "Site07": Site(lat_deg=-88.81101, lon_deg=123.69007, height_m=0.0),
 }
 
-# site, window start, window stop (inclusive), 6 h step.
+# site, window start, window stop (inclusive calendar days), 6 h step in fixtures.
 CASES = [
     ("Site01", "2027-01-01", "2027-03-01"),
     ("Site07", "2027-07-01", "2027-09-01"),
@@ -41,7 +41,16 @@ CASES = [
     ("Site04", "2027-07-01", "2027-09-01"),
     ("Site01", "2027-07-01", "2027-09-01"),
     ("Site07", "2027-01-01", "2027-03-01"),
+    # D-c403: extra one-month Site01 blocks (slice wider shipped fixtures).
+    ("Site01", "2027-01-01", "2027-01-31"),
+    ("Site01", "2027-07-01", "2027-07-31"),
 ]
+
+# Wider on-disk Horizons files that contain shorter CASES windows.
+_FIXTURE_PARENT = {
+    ("Site01", "2027-01-01", "2027-01-31"): ("2027-01-01", "2027-03-01"),
+    ("Site01", "2027-07-01", "2027-07-31"): ("2027-07-01", "2027-09-01"),
+}
 
 
 def circular_abs_delta_deg(a: float, b: float) -> float:
@@ -60,9 +69,23 @@ def _stamp(iso_date: str) -> str:
     return iso_date.replace("-", "")
 
 
+def _fixture_span(site_name: str, start: str, stop: str) -> tuple[str, str]:
+    key = (site_name, start, stop)
+    return _FIXTURE_PARENT.get(key, (start, stop))
+
+
 def _fixture(site_name: str, start: str, stop: str, body: str) -> Path:
-    name = f"{site_name}_{_stamp(start)}_{_stamp(stop)}_{body}.txt"
+    f_start, f_stop = _fixture_span(site_name, start, stop)
+    name = f"{site_name}_{_stamp(f_start)}_{_stamp(f_stop)}_{body}.txt"
     return _FIXTURES / name
+
+
+def _filter_horizons_rows(
+    rows: list[HorizonsRow], start: str, stop: str
+) -> list[HorizonsRow]:
+    t0 = np.datetime64(start, "D")
+    t1 = np.datetime64(stop, "D") + np.timedelta64(1, "D")
+    return [r for r in rows if t0 <= r.time_utc < t1]
 
 
 def _inclusive_step_count(start: str, stop: str, step_h: int = 6) -> int:
@@ -99,9 +122,9 @@ def test_sky_matches_horizons_apparent_azel(
         assert "MEAN_ME" in text, label
         assert "AIRLESS" in text, label
 
-    sun_rows = parse_horizons_azel(sun_path)
-    earth_rows = parse_horizons_azel(earth_path)
-    n = _inclusive_step_count(start, stop)
+    sun_rows = _filter_horizons_rows(parse_horizons_azel(sun_path), start, stop)
+    earth_rows = _filter_horizons_rows(parse_horizons_azel(earth_path), start, stop)
+    n = len(sun_rows)
     assert len(sun_rows) == n, f"{label}: sun fixture has {len(sun_rows)} rows, window has {n}"
     assert len(earth_rows) == n, (
         f"{label}: earth fixture has {len(earth_rows)} rows, window has {n}"

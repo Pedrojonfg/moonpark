@@ -8,6 +8,7 @@ from moonpark.horizon import polar_stereo_xy
 from moonpark.horizon.cap_index import (
     cap_index_available,
     sites_in_latlon_rect,
+    sites_in_latlon_rect_xy_corners,
     sites_in_xy_rect,
 )
 from moonpark.site01 import SITE01
@@ -46,6 +47,29 @@ def test_nearest_cap_mask_snaps_within_a_cell():
     assert m is not None and m.elevation_deg.shape == (720,)
     # Far outside the cap: no cell, no mask.
     assert nearest_cap_mask(Site(lat_deg=-60.0, lon_deg=0.0, observer_height_m=2.0)) is None
+
+
+def _cell_keys(cells) -> set[tuple[float, float]]:
+    return {(round(c[0].lat_deg, 6), round(c[0].lon_deg, 6)) for c in cells}
+
+
+@pytest.mark.parametrize(
+    "lat_min, lat_max, lon_min, lon_max",
+    [
+        (-89.52, -89.40, 222.0, 223.0),
+        (SITE01.lat_deg - 0.2, SITE01.lat_deg + 0.2, SITE01.lon_deg - 1.0, SITE01.lon_deg + 1.0),
+        (-90.0, -85.0, 200.0, 250.0),
+    ],
+    ids=["deep-rect", "site01-box", "polar-wedge"],
+)
+def test_oracle_membership_superset_of_legacy_xy_corners(
+    lat_min: float, lat_max: float, lon_min: float, lon_max: float,
+) -> None:
+    """D-c898: deprecated xy corner path must not return cells outside the footprint oracle."""
+    legacy = _cell_keys(sites_in_latlon_rect_xy_corners(lat_min, lat_max, lon_min, lon_max))
+    oracle = _cell_keys(sites_in_latlon_rect(lat_min, lat_max, lon_min, lon_max))
+    assert legacy <= oracle, f"legacy-only cells: {sorted(legacy - oracle)[:5]}"
+    assert len(oracle) >= len(legacy)
 
 
 def test_latlon_rect_filters_by_longitude() -> None:
