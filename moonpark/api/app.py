@@ -821,8 +821,15 @@ def deep_search_endpoint(body: DeepSearchBody):
             start_v,
             body.window_hours,
         )
-        return {**out, "requirements": requirements, "warnings": warnings, "dropped_cells": 0,
-                "state": "complete", "checkpoint": None}
+        return {
+            **out,
+            "requirements": requirements,
+            "warnings": warnings,
+            "dropped_cells": 0,
+            "state": "complete",
+            "checkpoint": None,
+            "compute_identity": compute_identity(),
+        }
     from moonpark.ephemeris import SpiceEphemeris
     from moonpark.horizon.cap_index import (
         cap_index_available,
