@@ -229,10 +229,13 @@ def deep_search(
         n_starts = max(1, min(n_starts, len(site_list) * len(starts)))
     else:
         n_starts = 0
+    from moonpark.resume_identity import compute_identity
+
     fingerprint = {
         "mode": mode, "n_sites": len(site_list), "n_window_starts": int(starts.size),
         "first_start": str(starts[0]), "window_hours": h, "needs": json.loads(json.dumps(needs, default=str)),
         "extra": json.loads(json.dumps(fingerprint_extra or {}, default=str, sort_keys=True)),
+        "compute_identity": compute_identity(),
     }
 
     cache: dict[tuple[int, int], dict | None] = {}
@@ -259,6 +262,15 @@ def deep_search(
         }
 
     if resume:
+        from moonpark.resume_identity import compute_identity, identity_mismatch
+
+        stored_id = (resume.get("fingerprint") or {}).get("compute_identity")
+        bad = identity_mismatch(stored_id, compute_identity())
+        if bad:
+            raise ValueError(
+                "resume checkpoint: motor or data changed "
+                f"({bad}); start a new search after updating"
+            )
         n_starts = _validated_resume(resume, fingerprint, n_starts, len(site_list), int(starts.size), cache,
                                      dropped, make_row)
 

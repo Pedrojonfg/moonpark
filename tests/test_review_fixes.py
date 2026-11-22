@@ -139,22 +139,30 @@ DEEP = {**RECT, "start": "2027-01-01T00:00:00Z", "end": "2027-01-02T00:00:00Z", 
         "mode": "total_coverage"}
 
 
+def _deep_rect_cell_count() -> int:
+    from moonpark.horizon.cap_index import sites_in_latlon_rect
+
+    return len(sites_in_latlon_rect(RECT["lat_min"], RECT["lat_max"], RECT["lon_min"], RECT["lon_max"]))
+
+
 @needs_data
 def test_deep_search_zero_soil_limit_drops_nothing(monkeypatch, client_masks) -> None:
     _patch_hazards(monkeypatch, SOIL_GONE)
+    n_cells = _deep_rect_cell_count()
     r = client.post("/deep-search", json={**DEEP, "hazards_enabled": True, "min_soil_resistance": 0})
     assert r.status_code == 200, r.text[:300]
     p = r.json()
     assert p["dropped_cells"] == 0
-    assert len(p["export_rows"]) == 3
+    assert len(p["export_rows"]) == n_cells
 
 
 @needs_data
 def test_deep_search_positive_soil_limit_still_drops(monkeypatch, client_masks) -> None:
     _patch_hazards(monkeypatch, SOIL_GONE)
+    n_cells = _deep_rect_cell_count()
     r = client.post("/deep-search", json={**DEEP, "hazards_enabled": True, "min_soil_resistance": 10})
     assert r.status_code == 200, r.text[:300]
-    assert r.json()["dropped_cells"] == 3
+    assert r.json()["dropped_cells"] == n_cells
 
 
 # =============================================================== 2. pessimistic bridge_h (D-9413)

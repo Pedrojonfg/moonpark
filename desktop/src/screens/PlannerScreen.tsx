@@ -30,6 +30,7 @@ import {
 const mb = (bytes: number) => (bytes / 1e6).toFixed(bytes >= 1e8 ? 0 : 1);
 import { LocalSearchBoard } from "../LocalSearchBoard";
 import { SiteResult } from "../SiteCharts";
+import { EngineMemoryPanel } from "../EngineMemoryPanel";
 import { DEMO_SITE, MissionTemplate, PlannerForm, SitePayload, energyOn, matchingTemplateId } from "../types";
 
 type Props = {
@@ -598,6 +599,8 @@ export function PlannerScreen({
           />
         </div>
       </form>
+
+      {!STATIC_DEMO && <EngineMemoryPanel />}
 
       {messages}
     </div>

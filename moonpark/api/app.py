@@ -638,6 +638,50 @@ class DeepSearchStopBody(BaseModel):
 
 _DEEP_JOBS: dict[str, threading.Event] = {}  # job_id -> stop flag of a running /deep-search (D-1454)
 _DEEP_JOBS_LOCK = threading.Lock()
+_DEEP_ACTIVE = 0  # D-f3a8: one deep-search at a time per process
+_DEEP_ACTIVE_LOCK = threading.Lock()
+
+
+def _evict_pcp_bins() -> None:
+    from moonpark.hazards import default_moon_hazards
+    from moonpark.hazards.pcp import PolarPcpClimatology
+
+    clim = default_moon_hazards().climatology
+    if isinstance(clim, PolarPcpClimatology):
+        clim.evict_lru_bins()
+
+
+class SessionMemoryBody(BaseModel):
+    pcp_ram_fraction: float | None = Field(default=None, ge=0.05, le=0.8)
+    session_ram_fraction: float | None = Field(default=None, ge=0.1, le=0.9)
+    pcp_cache_mb: int | None = Field(default=None, ge=256, le=8192)
+    session_budget_mb: int | None = Field(default=None, ge=2048, le=24576)
+    pcp_xy_high_precision: bool | None = None
+    reset_automatic: bool = False
+
+
+@app.get("/session-memory")
+def session_memory_get() -> dict[str, Any]:
+    from moonpark.session_memory import config_snapshot
+
+    return config_snapshot()
+
+
+@app.post("/session-memory")
+def session_memory_set(body: SessionMemoryBody) -> dict[str, Any]:
+    from moonpark.session_memory import apply_overrides, config_snapshot, reset_overrides
+
+    if body.reset_automatic:
+        reset_overrides()
+    else:
+        apply_overrides(
+            pcp_ram_fraction=body.pcp_ram_fraction,
+            session_ram_fraction=body.session_ram_fraction,
+            pcp_cache_mb=body.pcp_cache_mb,
+            session_budget_mb=body.session_budget_mb,
+            pcp_xy_high_precision=body.pcp_xy_high_precision,
+        )
+    return config_snapshot()
 
 
 def _evaluation_needs(needs: dict, step_min: int, hazards_enabled: bool):
@@ -701,6 +745,7 @@ def deep_search_stop(body: DeepSearchStopBody) -> dict[str, bool]:
 
 @app.post("/deep-search")
 def deep_search_endpoint(body: DeepSearchBody):
+    global _DEEP_ACTIVE
     # per D-60a3 dedicated endpoint; D-54f0 modes; D-c159 rect snap; D-75f1 the user's requirements; D-1454 stop/resume
     # Structural validation first: no kernel/cap access until the request is known to be well formed.
     for lo, hi in (("lat_min", "lat_max"), ("lon_min", "lon_max")):
@@ -717,7 +762,23 @@ def deep_search_endpoint(body: DeepSearchBody):
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"error": "bad_time", "message": str(e)}) from e
 
+    from moonpark.resume_identity import compute_identity
     from moonpark.search import deep as deep_mod
+    from moonpark.session_memory import check_session_pressure
+
+    try:
+        check_session_pressure(evict_pcp=_evict_pcp_bins)
+    except ValueError as exc:
+        raise _invalid("session", str(exc), error="session_memory_pressure") from exc
+
+    with _DEEP_ACTIVE_LOCK:
+        if _DEEP_ACTIVE > 0:
+            raise _invalid(
+                "deep_search",
+                "another deep-search is already running in this engine",
+                status=409,
+                error="deep_search_busy",
+            )
 
     step_m = int(body.step_min)
     needs = _request_needs(
@@ -851,9 +912,13 @@ def deep_search_endpoint(body: DeepSearchBody):
 
     job_id = body.job_id
     stop_ev = threading.Event()
+    with _DEEP_ACTIVE_LOCK:
+        _DEEP_ACTIVE += 1
     if job_id:
         with _DEEP_JOBS_LOCK:
             if job_id in _DEEP_JOBS:
+                with _DEEP_ACTIVE_LOCK:
+                    _DEEP_ACTIVE -= 1
                 raise _invalid("job_id", f"job_id {job_id!r} is already running", status=409, error="job_running")
             _DEEP_JOBS[job_id] = stop_ev
     try:
@@ -882,11 +947,16 @@ def deep_search_endpoint(body: DeepSearchBody):
             domain_boundary_at=[boundary_at[i] for i in range(len(sites))],
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"error": "deep_failed", "message": str(e)}) from e
+        msg = str(e)
+        if "motor or data changed" in msg:
+            raise _invalid("resume", msg, status=409, error="resume_compute_identity_mismatch") from e
+        raise HTTPException(status_code=400, detail={"error": "deep_failed", "message": msg}) from e
     finally:
         if job_id:
             with _DEEP_JOBS_LOCK:
                 _DEEP_JOBS.pop(job_id, None)
+        with _DEEP_ACTIVE_LOCK:
+            _DEEP_ACTIVE = max(0, _DEEP_ACTIVE - 1)
 
     dropped = int(result.get("dropped_cells") or 0)
     warnings = list(warnings) + list(result.get("warnings") or [])
@@ -915,6 +985,7 @@ def deep_search_endpoint(body: DeepSearchBody):
         "dropped_cells": dropped,
         "state": result.get("state", "complete"),
         "checkpoint": result.get("checkpoint"),
+        "compute_identity": compute_identity(),
     }
 
     if body.format == "csv":

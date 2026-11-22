@@ -212,6 +212,7 @@ export async function saveStoppedSearch(
       `Search ${r.mode === "total_coverage" ? "total coverage" : "optimized"} · lat ${r.lat_min}..${r.lat_max}, lon ${r.lon_min}..${r.lon_max}`,
     appVersion: null, // filled in by the desktop shell on write
     dataVersion,
+    computeIdentity: (result as { compute_identity?: Record<string, string | null> }).compute_identity ?? null,
     form: { ...form },
     payload,
     // Minimal summary: a stopped search has no verdict yet; the list labels it "Search (stopped)".

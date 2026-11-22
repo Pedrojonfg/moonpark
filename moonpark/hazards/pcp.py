@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -85,7 +86,7 @@ class PolarPcpClimatology:
 
     root: Path = field(default_factory=default_pcp_root)
     product: str = PRODUCT_ID
-    _cache: dict[tuple[str, int], _BinCache] = field(default_factory=dict, repr=False)
+    _cache: OrderedDict[tuple[str, int], _BinCache] = field(default_factory=OrderedDict, repr=False)
     _value_cache: dict[tuple[str, int, float, float], tuple[float | None, dict]] = field(
         default_factory=dict, repr=False
     )
@@ -131,19 +132,39 @@ class PolarPcpClimatology:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             list(pool.map(lambda k: self._load_bin(k[0], k[1]), missing))
 
+    @staticmethod
+    def _bin_nbytes(cache: _BinCache) -> int:
+        return int(cache.x.nbytes + cache.y.nbytes + cache.tbol.nbytes)
+
+    def evict_lru_bins(self) -> None:
+        """Drop oldest bins until within PCP cache budget (D-f3a8)."""
+        from moonpark.session_memory import pcp_cache_budget_mb
+
+        budget = pcp_cache_budget_mb() * 1024 * 1024
+        total = sum(self._bin_nbytes(c) for c in self._cache.values())
+        while self._cache and total > budget:
+            _key, ev = self._cache.popitem(last=False)
+            total -= self._bin_nbytes(ev)
+
     def _load_bin(self, season: str, bin_1based: int) -> _BinCache | None:
         key = (season, bin_1based)
         if key in self._cache:
+            self._cache.move_to_end(key)
             return self._cache[key]
         path = self._bin_path(season, bin_1based)
         if path is None:
             return None  # no other-season substitute (D-20261118-pj-b3dc); not cached so a retry can find it
+        from moonpark.session_memory import pcp_xy_high_precision
+
+        xy_dtype = np.float64 if pcp_xy_high_precision() else np.float32
         with np.load(path) as z:
-            x = np.asarray(z["x"], dtype=np.float64)
-            y = np.asarray(z["y"], dtype=np.float64)
+            x = np.asarray(z["x"], dtype=xy_dtype)
+            y = np.asarray(z["y"], dtype=xy_dtype)
             tbol = np.asarray(z["tbol"], dtype=np.float32)
         cache = _BinCache(x=x, y=y, tbol=tbol)
         self._cache[key] = cache
+        self._cache.move_to_end(key)
+        self.evict_lru_bins()
         return cache
 
     def at_site_time(
