@@ -5,7 +5,7 @@ kind: task
 owner: pj
 branch: main
 created: 2026-11-22T10:59:05Z
-stage: verify
+stage: build
 relates: [T-20261118-pj-a670, D-20261114-pj-9f04]
 ---
 # Senior reliability roadmap (independent audit)
@@ -17,11 +17,25 @@ Close the seven reliability themes from the independent senior-level audit (geog
 ## Triage
 
 - Own/advise: what “done” means per theme; validation tolerances and claims; memory budget; resume/version policy; what the installer must prove; contract boundaries.
+- **2026-11-22 auditor delta (3 remaining):** own/advise — what `validation_full` must prove when data is present vs absent; how geographic completeness is evidenced. Plumbing once policy is clear — Windows-safe RSS (`D-f3a8` already claims Windows); lon prefilter that drops footprint-touching cells; wire `--validation-full` to actually run compares.
 - Plumbing: only after decisions exist for each theme.
 
 ## Pending checkpoint
 
-None.
+---
+**✦ Implementation checkpoint: three auditor closures (partial)**
+
+Changes:
+1. `moonpark/session_memory.py` (+ callers/tests as needed): no import-time POSIX-only `resource`; portable RSS under `D-f3a8` / `D-a91c` Windows claim.
+2. S12 scripts + `tests/test_s12_validation_full.py` (+ claim text in `docs/validation.md` / install notes if they overclaim): per `D-a64b` — with heavy data present, `--validation-full` runs the scientific compare; without data, fail clearly; docs state which green means what.
+3. Measurement harness for remaining selector cribas (`D-c1ed`): precision vs full membership scan + wall time for lat_pad mask, lon_pad mask, and `_footprint_intersects_latlon_rect` sampling; include auditor-style boundary probes that can fail today. **Out of this step:** keep/drop of those cribas (`deferred` in `D-c1ed`).
+
+Out of this step: post-measurement keep/drop decide; PGDA/short-night science disagreement follow-up; new product features.
+
+**Proposed additions:** | Detail | Proposal | Why it matters |
+| script location | `scripts/bench_selector_cribas.py` (or under `tests/` if pj prefers) | mirrors AABB measurement path in `D-c898` |
+| result sink | print + optional JSON under `logs/` (gitignored) | same pattern as other local benches |
+---
 
 ## Decide closure (item 1 policy)
 
@@ -80,18 +94,41 @@ None.
 
 **Decide phase:** audit themes 1–7 closed; build pass may start when pj enters build stage.
 
+**Three auditor closures (2026-11-22):**
+- D-20261122-pj-a64b — validation_full green semantics (local science vs CI missing-data)
+- D-20261122-pj-c1ed — measure remaining cribas (precision+time) before keep/drop
+
 ## Auto decisions
 
 | Choice | Reason |
 |--------|--------|
+| Portable RSS / lazy `resource` (or Windows equivalent) under `D-f3a8` | Platform claim already accepted; import-time POSIX-only crash is implementation |
+| `--validation-full` implies scientific run when inputs exist | Required by `D-a64b` when heavy inputs are present on the host |
 
 ## Fog
 
-- Which specific test “passes without reaching its assertion” the auditor meant (not yet pinned to a file).
+- PGDA/short-night numeric disagreements (protocol follow-up; not these three closures).
 
 ## Out of scope
 
 - New features beyond what portfolio v1 already promises (`D-9f04`).
+- Re-investigating PGDA Site07 / 8 h short-night as part of this closure pass.
+
+## Agenda (three auditor closures, 2026-11-22)
+
+**Destination:** Windows portable RSS + prefilter completeness + honest `validation_full` semantics decided or auto under cited D-IDs; then build.
+
+**Already decided:** `D-3e10`, `D-ae04`, `D-c898`, `D-f3a8`, `D-a91c`, `D-b591` (missing heavy data → job fail not SKIP), `D-814a`.
+
+**Auto:**
+- Optional/portable RSS under `D-f3a8` (no top-level POSIX-only `import resource`)
+- Wire `--validation-full` so that when required data is present the scientific compare actually runs (subject to Decision 1)
+
+**Queue:**
+1. Meaning of a green `validation_full` — concepts: `evidence-gated validation` — own
+2. Prefilter / completeness guarantee — concepts: `footprint prefilter completeness` — own (pj pulled from advise)
+
+**Fog / out of scope:** as above.
 
 ## Build
 
@@ -99,9 +136,21 @@ None.
 
 **Verify (2026-11-22 WSL):** all S12 `--force-run` rows filled in `docs/validation.md`; `pytest -m validation_full` green with PGDA+DEM on disk (~3 min gate); short-night Site07 \|error\|=8 h (document reopen Y); PGDA soft claim fails (Site07 +50 pp outlier — map band follow-up). Run logs under `logs/validation/` (local, not in git). Push when pj ready.
 
+**Independent auditor re-verify (2026-11-22, mid-strong):** pole case fixed; still open (1) `import resource` breaks Windows suite/API/`/deep-search`; (2) lon prefilter can drop cells whose footprint intersects the region (repro: center lon 99.99°, rect 100–101°); (3) `validation_full` tests pass on missing-data exit 2 and `--validation-full` alone does not force the scientific compare. No new product requirements.
+
 ## Audit
 
-pending
+pending — blocked on closing the three auditor items above
+
+## Orientation (2026-11-22 session, three remaining)
+
+- Concepts (dependency order):
+  - **session resource budget** (`prerequisite`) — `D-f3a8`; process RSS + PCP LRU; declared platforms include Windows.
+  - **platform-portable session memory** (`core`) — top-level `import resource` is POSIX-only; Windows CPython has no `resource` module → import-time failure before any lunar data.
+  - **cap grid / footprint membership** (`prerequisite`) — `D-3e10`, `D-c898`; oracle scan + optional criba.
+  - **footprint prefilter completeness** (`core` / `hazard`) — `lon_mask` uses center longitude with a fixed pad; a cell west of `lo_lon` whose square still touches the rect can be discarded before `_footprint_intersects_latlon_rect`.
+  - **evidence-gated validation** (`core` / `hazard`) — `D-b591` “fail not skip” on missing heavy data; current tests treat exit 2 as pass; scripts still gate the real compare on `--force-run`, so `--validation-full` alone can exit 0 without comparing.
+- Decisions surfaced: whether to reopen/supersede `D-b591` on what the marker proves; whether completeness needs a new test oracle decision beyond `D-c898`; Windows RSS method under existing `D-f3a8`.
 
 ## Agenda (decide-all-before-build)
 
