@@ -2,6 +2,8 @@
 
 Evidence-gated (`D-de70`). Rows without a dated command + numbers remain **planned**.
 
+**`validation_full` / `D-20261122-pj-a64b`:** Locally, `pytest -m validation_full` (or `--validation-full` on the S12 harness scripts) with DEM/PGDA/kernels on disk runs the same compare path as `--force-run` — green means science ran, not `HARNESS_READY_AWAITING_OVERNIGHT`. In GitHub **Validation full** without heavy data, scripts exit 2 and the job fails (`D-b591`); that is not a science pass. A pytest that only checks exit 2 when data is absent proves the missing-data gate only.
+
 | Check | Decision | Status | How to run |
 |-------|----------|--------|------------|
 | Success X/Y/Z | `D-41fa` | Horizons and score tests exist; the 28-point 5 m comparison is **not in the repo** (removed from claims) | `pytest` |

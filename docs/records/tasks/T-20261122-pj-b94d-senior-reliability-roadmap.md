@@ -22,20 +22,7 @@ Close the seven reliability themes from the independent senior-level audit (geog
 
 ## Pending checkpoint
 
----
-**✦ Implementation checkpoint: three auditor closures (partial)**
-
-Changes:
-1. `moonpark/session_memory.py` (+ callers/tests as needed): no import-time POSIX-only `resource`; portable RSS under `D-f3a8` / `D-a91c` Windows claim.
-2. S12 scripts + `tests/test_s12_validation_full.py` (+ claim text in `docs/validation.md` / install notes if they overclaim): per `D-a64b` — with heavy data present, `--validation-full` runs the scientific compare; without data, fail clearly; docs state which green means what.
-3. Measurement harness for remaining selector cribas (`D-c1ed`): precision vs full membership scan + wall time for lat_pad mask, lon_pad mask, and `_footprint_intersects_latlon_rect` sampling; include auditor-style boundary probes that can fail today. **Out of this step:** keep/drop of those cribas (`deferred` in `D-c1ed`).
-
-Out of this step: post-measurement keep/drop decide; PGDA/short-night science disagreement follow-up; new product features.
-
-**Proposed additions:** | Detail | Proposal | Why it matters |
-| script location | `scripts/bench_selector_cribas.py` (or under `tests/` if pj prefers) | mirrors AABB measurement path in `D-c898` |
-| result sink | print + optional JSON under `logs/` (gitignored) | same pattern as other local benches |
----
+None. (Implementation approved 2026-11-22: ADRs committed; /implementa in progress.)
 
 ## Decide closure (item 1 policy)
 
@@ -137,6 +124,12 @@ Out of this step: post-measurement keep/drop decide; PGDA/short-night science di
 **Verify (2026-11-22 WSL):** all S12 `--force-run` rows filled in `docs/validation.md`; `pytest -m validation_full` green with PGDA+DEM on disk (~3 min gate); short-night Site07 \|error\|=8 h (document reopen Y); PGDA soft claim fails (Site07 +50 pp outlier — map band follow-up). Run logs under `logs/validation/` (local, not in git). Push when pj ready.
 
 **Independent auditor re-verify (2026-11-22, mid-strong):** pole case fixed; still open (1) `import resource` breaks Windows suite/API/`/deep-search`; (2) lon prefilter can drop cells whose footprint intersects the region (repro: center lon 99.99°, rect 100–101°); (3) `validation_full` tests pass on missing-data exit 2 and `--validation-full` alone does not force the scientific compare. No new product requirements.
+
+**Build (2026-11-22 /implementa, after D-a64b + D-c1ed):**
+1. Portable RSS — `moonpark/session_memory.py` (no top-level `resource`); tests `tests/test_session_memory_portability.py` green.
+2. `validation_full` → force scientific run when inputs exist — four S12 scripts + docs claim text; force-science unit tests green.
+3. Criba investigation — `scripts/bench_selector_cribas.py`; production keep/drop **not** changed (`D-c1ed` deferred). Bench (cap on disk): auditor probe FAIL (`footprint` true, `lon_mask` false); lon_mask drives omissions (e.g. auditor-lon100: 23 prod vs oracle).
+Parent re-ran: portability + reliability + two force-science tests → 10 passed.
 
 ## Audit
 
