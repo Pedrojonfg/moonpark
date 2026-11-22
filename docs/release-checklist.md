@@ -14,7 +14,7 @@
 - The UI of the packaged app was not looked at (no screenshot under xvfb); only the engine side was exercised.
 - Windows and macOS installers were built but never launched on real machines.
 - macOS and Windows builds are unsigned: expect Gatekeeper / SmartScreen warnings.
-- **2026-11-21 night:** fill-stats recompute finished (290 289 masks, 44 tiles, ~13.1 h wall with 4 workers). Swapped `cap_1km_new` → `cap_1km` (old set kept as `cap_1km_old_pre_d90c`). `test_cap_fill_stats` green. **Still need** `publish_masks.py --only cap_1km` once `R2_*` are in the env again.
+- **2026-11-21 night:** fill-stats recompute finished (290 289 masks, 44 tiles, ~13.1 h wall with 4 workers). Swapped `cap_1km_new` → `cap_1km` (old set kept as `cap_1km_old_pre_d90c`). `test_cap_fill_stats` green. **2026-11-22:** republished fill-stats cap to R2 as `cap_1km/6f5bd6aee903` (via VPS; local Sophos MITM blocked direct upload).
 
 ## Remaining
 1. Republish cap with fill stats: `publish_masks.py --only cap_1km` (R2 credentials).
