@@ -33,7 +33,7 @@ Record a known limitation of **point + coarse map** interpretation at this locat
 
 **S1.** Keep **Site07** in the PGDA-78 S12 set. Publish in **`docs/validation.md`** a **Site07 note**: coarse PGDA 69 posting cliff; cite centre vs window mean and neighbour range; 5 m horizon very open; short-night **8 h** cap gap cross-ref. After **`D-f8c2` re-run**, use updated Δ for soft-claim (`D-6dc3`). **No** automatic README agreement claim regardless until pj reviews the new table.
 
-**Catalog name:** optional follow-up (`D-d1c4-catalog`) — not required for this decision.
+**Catalog names:** verified for all four S12 sites → `docs/pgda78-site-catalog.md` (2026-11-22).
 
 ## Rationale
 
@@ -53,7 +53,7 @@ pj: protocol fix first; document anomaly; avoid spending long-term quality work 
 | site07_pgda_cliff | documented | validation.md PGDA section |
 | site07_short_night_cap_error_h | 8 | 2027, document-only |
 | site07_pgda78_dem | Site07_final_adj_5mpp_surf.tif | Fixture id, not NASA prose name |
-| site07_catalog_verify | deferred | See optional follow-up in validation.md |
+| pgda78_catalog_verify | complete_2026_11_22 | docs/pgda78-site-catalog.md (4 sites) |
 
 ## Expected behavior and validation
 

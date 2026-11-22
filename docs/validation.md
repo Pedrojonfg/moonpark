@@ -96,11 +96,11 @@ Soft claim gate (`D-6dc3`): median \|Δ\| = **1.97 pp**, max = **12.81 pp** (Sit
 
 #### Site07 note (`D-d1c4`)
 
-- **Fixture:** `Site07` at −88.811°, 123.690° with PGDA-78 DEM `Site07_final_adj_5mpp_surf.tif` (internal id; NASA catalogue name not verified — see below).
+- **Fixture:** **Peak near Shackleton** (`Site07`) at −88.811°, 123.690° with PGDA-78 DEM `Site07_final_adj_5mpp_surf.tif` (catalog: [`pgda78-site-catalog.md`](pgda78-site-catalog.md)).
 - **Fine horizon:** elevation mask &lt; ~1.3° in all azimuths (very open sky) → high long-term mean sun fraction (~67 %).
 - **PGDA 69 cliff:** centre 60 m cell **17 %**; 5×5 neighbours **17–86 %**; window mean **55 %**. Remaining Δ (+13 pp) is not explained by a single bad pixel alone.
 - **Short-night:** cap vs fine longest night in 2027 differs by **8 h** (document-only per `D-1a2d`).
 
-#### PGDA-78 “real name” (optional verify)
+#### PGDA-78 catalog (`D-d1c4`, verified 2026-11-22)
 
-Moonpark labels (`Site01` … `Site11`) match **Horizons fixtures** and **DEM filenames** from PGDA product **78** (5 m site mosaics). NASA’s product page lists **human site names** (e.g. Shackleton rim, Malapert Massif, Nobile Rim, Connecting Ridge) each with a published lat/lon and file bundle. **Catalog verify** means: for each `SiteNN`, record which NASA name and coordinates are the authority, and confirm our lat/lon/DEM tile are the same point—not a neighbouring peak or a typo. **Deferred** unless we need README prose or citations by proper name (`D-d1c4`).
+Full table: [`docs/pgda78-site-catalog.md`](pgda78-site-catalog.md). S12 PGDA set: **Connecting ridge** (Site01), **Shackleton rim** (Site04), **Peak near Shackleton** (Site07), **de Gerlache rim** (Site11); fixtures match DEM tile centres (&lt; 0.1 m).

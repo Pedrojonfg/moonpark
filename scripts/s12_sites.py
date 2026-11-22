@@ -1,8 +1,19 @@
-"""Named validation sites (Horizons / PGDA fixtures)."""
+"""Named validation sites (Horizons / PGDA fixtures).
+
+PGDA product 78 names and verification: ``docs/pgda78-site-catalog.md``.
+"""
 
 from __future__ import annotations
 
 from moonpark.providers import Site
+
+# PGDA LOLA_5mpp README prose names (product 78).
+PGDA78_NAMES: dict[str, str] = {
+    "Site01": "Connecting ridge",
+    "Site04": "Shackleton rim",
+    "Site07": "Peak near Shackleton",
+    "Site11": "de Gerlache rim",
+}
 
 SITES: dict[str, Site] = {
     "Site01": Site(lat_deg=-89.46316, lon_deg=222.51045, observer_height_m=2.0),
