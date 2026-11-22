@@ -14,6 +14,9 @@ def test_validation_md_exists() -> None:
     text = (ROOT / "docs" / "validation.md").read_text(encoding="utf-8")
     assert "D-39f3" in text
     assert "D-9ab3" in text
+    assert "D-7a51" in text
+    assert "D-7bd7" in text
+    assert "D-c403" in text
     assert "planned" in text.lower()
 
 
@@ -67,6 +70,39 @@ def test_short_night_checkpoint_resume(tmp_path: Path) -> None:
     )
     assert r2.returncode == 0, r2.stderr
     assert "D-20261115-pj-39f3" in r2.stdout
+
+
+def test_temporal_convergence_dry_run(tmp_path: Path) -> None:
+    out = tmp_path / "temporal.json"
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "s12_temporal_convergence.py"), "--json-out", str(out)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["decision"] == "D-20261122-pj-7a51"
+    assert data["steps_min"] == [60, 10, 1]
+    assert data["status"] in {"SKIP_NO_KERNELS", "HARNESS_READY_AWAITING_OVERNIGHT"}
+    assert data["results"] == {}
+
+
+def test_spatial_convergence_dry_run(tmp_path: Path) -> None:
+    out = tmp_path / "spatial.json"
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "s12_spatial_convergence.py"), "--json-out", str(out)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["decision"] == "D-20261122-pj-7bd7"
+    assert data["step_min"] == 60
+    assert data["status"] in {"SKIP_NO_KERNELS_OR_CAP", "HARNESS_READY_AWAITING_OVERNIGHT"}
 
 
 def test_pgda69_script_dry_run(tmp_path: Path) -> None:

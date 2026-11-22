@@ -5,6 +5,9 @@ Evidence-gated (`D-de70`). Numbers below stay **planned** until the overnight sc
 | Check | Decision | Status | How to run |
 |-------|----------|--------|------------|
 | Success X/Y/Z | `D-41fa` | Horizons and score tests exist; the 28-point 5 m comparison is **not in the repo** (removed from claims) | `pytest` |
+| Horizons apparent az/el | `D-c403` | **CI** — ≥8 case blocks at 0.05° (`tests/test_ephemeris.py`) | `pytest tests/test_ephemeris.py` |
+| Temporal step convergence | `D-7a51` | **planned** — harness; overnight `--force-run` on local PC | `python scripts/s12_temporal_convergence.py` |
+| Spatial cap vs fine mask | `D-7bd7` | **planned** — harness; local `--force-run` | `python scripts/s12_spatial_convergence.py` |
 | Short-night re-check | `D-39f3` (S1) | **planned** — harness is a skeleton, comparison not implemented | `python scripts/s12_short_night_recheck.py` |
 | PGDA 69 average illumination | `D-9ab3` (P1), role `D-fe17` | **planned** — harness is a skeleton, comparison not implemented | `python scripts/s12_pgda69_compare.py` |
 
@@ -18,6 +21,28 @@ Evidence-gated (`D-de70`). Numbers below stay **planned** until the overnight sc
 ### Results
 
 _No overnight run recorded yet._
+
+## Temporal convergence (`D-7a51`)
+
+- Sites: Site01, Site04.
+- Window: 2027-01-01 → 2027-02-01 (31 days).
+- Steps: 60, 10, 1 minute; hazards off.
+- Doc triggers: \|Δ longest night\| > 2 h (60 vs 10 or 60 vs 1); \|Δ score\| > 0.05 with same feasible.
+
+### Results
+
+_No overnight run recorded yet._
+
+## Spatial convergence (`D-7bd7`)
+
+- Sites: Site01, Site04, Site07.
+- Window: 7 days from 2027-01-01; step 60 min; hazards off.
+- Compare: nearest 1 km cap mask vs `mask_for_site` (finest on disk).
+- Doc trigger: \|Δ score\| > 0.05 or feasible mismatch → README 1 km limitation.
+
+### Results
+
+_No local run recorded yet._
 
 ## PGDA 69 comparison (`D-9ab3`)
 

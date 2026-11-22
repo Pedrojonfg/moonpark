@@ -5,7 +5,7 @@ kind: task
 owner: pj
 branch: main
 created: 2026-11-22T10:59:05Z
-stage: build
+stage: verify
 relates: [T-20261118-pj-a670, D-20261114-pj-9f04]
 ---
 # Senior reliability roadmap (independent audit)
@@ -95,7 +95,7 @@ None.
 
 ## Build
 
-2026-11-22 implementation pass (main, ahead of origin): §1 region oracle + boundary UI; §7 shared `evaluate_site_window`; §3/§5 session memory + `compute_identity`; §6 install-acceptance smoke + `docs/install-acceptance.md`; §2 `validation_full` marker/workflow; regression tests (`test_reliability_build`, `test_evaluate_parity`, cap oracle property, Horizons ≥8 cases per D-c403); S12 checkpoint stubs (D-814a). Pending: overnight S12 numbers in `validation.md`, temporal/spatial convergence runs, optional LaTeX build-artifact cleanup from decide commit.
+2026-11-22 implementation pass on `main`: themes 1–7 built; default `pytest` green; S12 harnesses including `s12_temporal_convergence` (D-7a51) and `s12_spatial_convergence` (D-7bd7) with checkpoints; LaTeX junk untracked. **Verify:** pj overnight/local `--force-run` fills `docs/validation.md`; optional `validation_full` workflow when PGDA/DEM exist; push when ready.
 
 ## Audit
 

@@ -33,6 +33,13 @@ video/node_modules/
 video/out/
 video/dist/
 
+# LaTeX (keep .tex / committed PDF only)
+docs/teaching/*.aux
+docs/teaching/*.log
+docs/teaching/*.fls
+docs/teaching/*.fdb_latexmk
+docs/teaching/pdflatex*.fls
+
 # Desktop (Tauri / Node) — local installs and build artifacts
 desktop/node_modules/
 desktop/dist/
