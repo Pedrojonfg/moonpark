@@ -49,8 +49,13 @@ def test_nearest_cap_mask_snaps_within_a_cell():
 
 
 def test_latlon_rect_filters_by_longitude() -> None:
+    from moonpark.horizon.cap_index import _footprint_intersects_latlon_rect
+
     lo, hi = SITE01.lon_deg - 0.5, SITE01.lon_deg + 0.5
+    width = hi - lo
     cells = sites_in_latlon_rect(-90.0, -80.0, lo, hi)
     assert cells
     for site, *_rest in cells:
-        assert lo <= site.lon_deg <= hi
+        assert _footprint_intersects_latlon_rect(
+            site.lat_deg, site.lon_deg, -90.0, -80.0, lo, width
+        )

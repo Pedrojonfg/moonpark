@@ -780,6 +780,7 @@ def deep_search_endpoint(body: DeepSearchBody):
     from moonpark.ephemeris import SpiceEphemeris
     from moonpark.horizon.cap_index import (
         cap_index_available,
+        is_domain_boundary_cell,
         mask_from_cap_tile,
         sites_in_latlon_rect,
     )
@@ -798,6 +799,9 @@ def deep_search_endpoint(body: DeepSearchBody):
             detail={"error": "cap_missing", "message": "1 km cap index not on disk"},
         )
 
+    lo_lat, hi_lat = sorted((float(body.lat_min), float(body.lat_max)))
+    lo_lon, hi_lon = sorted((float(body.lon_min), float(body.lon_max)))
+    lon_width = hi_lon - lo_lon
     cells = sites_in_latlon_rect(body.lat_min, body.lat_max, body.lon_min, body.lon_max)
     if not cells:
         raise HTTPException(
@@ -827,6 +831,10 @@ def deep_search_endpoint(body: DeepSearchBody):
     sites = [c[0] for c in cells]
     site_xy = [(c[1], c[2]) for c in cells]
     index_of = {(s.lat_deg, s.lon_deg): i for i, s in enumerate(sites)}
+    boundary_at = {
+        i: is_domain_boundary_cell(s.lat_deg, s.lon_deg, lo_lat, hi_lat, lo_lon, lon_width)
+        for i, s in enumerate(sites)
+    }
 
     eph = SpiceEphemeris()
     sun_thr, earth_thr = requirements["sun_lit_threshold"], requirements["earth_lit_threshold"]
@@ -865,7 +873,11 @@ def deep_search_endpoint(body: DeepSearchBody):
             hz = hazard_provider.hazards(candidate, fine_span[i0 : i0 + n])
             if hazard_status(True, hz, score_needs)[1]:
                 return None  # D-75f1: the cell lacks hazard data this search needs -> dropped and counted
-        return {"series": vis, "hazards": hz}
+        return {
+            "series": vis,
+            "hazards": hz,
+            "domain_boundary": boundary_at.get(idx, False),
+        }
 
     job_id = body.job_id
     stop_ev = threading.Event()
@@ -948,6 +960,7 @@ def deep_search_endpoint(body: DeepSearchBody):
             "score",
             "companion_score",
             "hazard_gap_star",
+            "domain_boundary",
         ]
         w = csv.DictWriter(buf, fieldnames=fields)
         w.writeheader()
@@ -962,6 +975,7 @@ def deep_search_endpoint(body: DeepSearchBody):
                     "score": r["score"],
                     "companion_score": r["companion_score"],
                     "hazard_gap_star": r["hazard_gap_star"],
+                    "domain_boundary": r.get("domain_boundary", False),
                 }
             )
         return PlainTextResponse(buf.getvalue(), media_type="text/csv")

@@ -5,7 +5,7 @@ kind: task
 owner: pj
 branch: main
 created: 2026-11-22T10:59:05Z
-stage: decide
+stage: build
 relates: [T-20261118-pj-a670, D-20261114-pj-9f04]
 ---
 # Senior reliability roadmap (independent audit)

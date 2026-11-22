@@ -1,14 +1,18 @@
-"""Query precomputed 1 km cap sites and load tile masks. # per D-c159 D-f369"""
+"""Query precomputed 1 km cap sites and load tile masks. # per D-c159 D-f369 D-3e10 D-c898"""
 
 from __future__ import annotations
 
+import math
 from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 
 from moonpark.horizon import polar_stereo_xy
+from moonpark.horizon.mask import R_M
 from moonpark.providers import HorizonMask, Site
+
+_CELL_HALF_M = 500.0  # D-3e10 axis-aligned 1 km footprint centered on the index node
 
 REPO = Path(__file__).resolve().parents[2]
 CAP_DIR = REPO / "data" / "masks" / "cap_1km"
@@ -92,16 +96,73 @@ def sites_in_xy_rect(
     return out
 
 
-def sites_in_latlon_rect(
+def _stereo_xy_to_latlon(x_m: float, y_m: float) -> tuple[float, float]:
+    """Inverse south-polar stereographic (matches ``region_map._polar_stereo_xy_to_latlon``)."""
+    rho = math.hypot(x_m, y_m)
+    if rho < 1.0e-12:
+        return -90.0, 0.0
+    k = 2.0 * math.atan(rho / (2.0 * R_M))
+    lat_deg = math.degrees(k) - 90.0
+    lon_deg = math.degrees(math.atan2(x_m, y_m)) % 360.0
+    return lat_deg, lon_deg
+
+
+def _lon_in_rect(lon_deg: float, lo_lon: float, width_deg: float) -> bool:
+    if width_deg >= 360.0:
+        return True
+    return (float(lon_deg) - lo_lon) % 360.0 <= width_deg
+
+
+def _footprint_intersects_latlon_rect(
+    lat_deg: float,
+    lon_deg: float,
+    lo_lat: float,
+    hi_lat: float,
+    lo_lon: float,
+    width_deg: float,
+) -> bool:
+    """1 km stereo-square footprint intersects the user lat/lon rectangle (D-20261122-pj-3e10)."""
+    if lo_lat <= lat_deg <= hi_lat and _lon_in_rect(lon_deg, lo_lon, width_deg):
+        return True
+    x_m, y_m = polar_stereo_xy(lat_deg, lon_deg)
+    half = _CELL_HALF_M
+    corners = (
+        (x_m - half, y_m - half),
+        (x_m + half, y_m - half),
+        (x_m - half, y_m + half),
+        (x_m + half, y_m + half),
+    )
+    lats: list[float] = []
+    lons: list[float] = []
+    for cx, cy in corners:
+        la, lo = _stereo_xy_to_latlon(cx, cy)
+        lats.append(la)
+        lons.append(lo)
+        if lo_lat <= la <= hi_lat and _lon_in_rect(lo, lo_lon, width_deg):
+            return True
+    if max(lats) < lo_lat or min(lats) > hi_lat:
+        return False
+    lon_min, lon_max = min(lons), max(lons)
+    for sample in np.linspace(lon_min, lon_max, 7):
+        if _lon_in_rect(float(sample), lo_lon, width_deg) and lo_lat <= lat_deg <= hi_lat:
+            return True
+    if lo_lat <= lat_deg <= hi_lat:
+        return _lon_in_rect(lon_deg, lo_lon, width_deg)
+    for la in (min(lats), max(lats)):
+        if lo_lat <= la <= hi_lat and any(_lon_in_rect(lo, lo_lon, width_deg) for lo in lons):
+            return True
+    return False
+
+
+def sites_in_latlon_rect_xy_corners(
     lat_min: float,
     lat_max: float,
     lon_min: float,
     lon_max: float,
 ) -> list[tuple[Site, float, float, int, int, int]]:
-    """Return cells in lat/lon box via stereo AABB of corners (polar lon wrap soft). # per D-c159"""
+    """Legacy stereo corner AABB pre-filter (regression only; D-20261122-pj-c898 deprecated for production)."""
     lo_lat, hi_lat = sorted((float(lat_min), float(lat_max)))
     lo_lon, hi_lon = sorted((float(lon_min), float(lon_max)))
-    # Stereo AABB from corners (and mid-edges) so polar lon wrap is less wrong.
     corners = [
         (lo_lat, lo_lon),
         (lo_lat, hi_lon),
@@ -118,8 +179,61 @@ def sites_in_latlon_rect(
     if width >= 360.0:
         in_lon = lambda lon: True  # noqa: E731
     else:
-        in_lon = lambda lon: (lon - lo_lon) % 360.0 <= width  # noqa: E731  (handles 0/360 wrap)
+        in_lon = lambda lon: (lon - lo_lon) % 360.0 <= width  # noqa: E731
     return [c for c in hit if lo_lat <= c[0].lat_deg <= hi_lat and in_lon(c[0].lon_deg)]
+
+
+def sites_in_latlon_rect(
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+) -> list[tuple[Site, float, float, int, int, int]]:
+    """Cap cells whose 1 km footprint intersects the user rectangle (oracle index scan; D-3e10, D-c898)."""
+    if not cap_index_available():
+        return []
+    lo_lat, hi_lat = sorted((float(lat_min), float(lat_max)))
+    lo_lon, hi_lon = sorted((float(lon_min), float(lon_max)))
+    width = hi_lon - lo_lon
+    table = _load_index()
+    lat = table.column("lat").to_numpy()
+    lon = table.column("lon").to_numpy()
+    x_m = table.column("x_m").to_numpy()
+    y_m = table.column("y_m").to_numpy()
+    tile_x = table.column("tile_x").to_numpy()
+    tile_y = table.column("tile_y").to_numpy()
+    row = table.column("row").to_numpy()
+    lat_pad = 0.05  # footprint slack (1 km scale near the cap)
+    lat_mask = (lat >= lo_lat - lat_pad) & (lat <= hi_lat + lat_pad)
+    if width >= 360.0:
+        lon_mask = np.ones_like(lat, dtype=bool)
+    else:
+        lon_pad = 2.0
+        lon_mask = (lon - lo_lon) % 360.0 <= (width + lon_pad)
+    cand = np.flatnonzero(lat_mask & lon_mask)
+    out: list[tuple[Site, float, float, int, int, int]] = []
+    for i in cand:
+        la, lo = float(lat[i]), float(lon[i])
+        if not _footprint_intersects_latlon_rect(la, lo, lo_lat, hi_lat, lo_lon, width):
+            continue
+        site = Site(lat_deg=la, lon_deg=lo, observer_height_m=2.0)
+        out.append((site, float(x_m[i]), float(y_m[i]), int(tile_x[i]), int(tile_y[i]), int(row[i])))
+    return out
+
+
+def is_domain_boundary_cell(
+    lat_deg: float,
+    lon_deg: float,
+    lo_lat: float,
+    hi_lat: float,
+    lo_lon: float,
+    width_deg: float,
+) -> bool:
+    """True when the cell is included via footprint touch but its center is outside the user rect (D-ae04, D-d254)."""
+    center_in = lo_lat <= lat_deg <= hi_lat and _lon_in_rect(lon_deg, lo_lon, width_deg)
+    if center_in:
+        return False
+    return _footprint_intersects_latlon_rect(lat_deg, lon_deg, lo_lat, hi_lat, lo_lon, width_deg)
 
 
 @lru_cache(maxsize=64)

@@ -55,6 +55,7 @@ def _row_from_eval(
         "score": float(scored["score"]),
         "companion_score": float(scored["companion_score"]),
         "hazard_gap_star": gap,
+        "domain_boundary": bool(ev.get("domain_boundary", False)),  # D-ae04 / D-d254
     }
 
 
