@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,8 +62,8 @@ def _run_compare(
         if idx < resume_at:
             continue
         site = sites[name]
-        map_v, st = pgda_map_fraction(pgda_path, site)
-        if st != "ok":
+        map_v, st, map_meta = pgda_map_fraction(pgda_path, site)
+        if st not in ("ok", "partial_window") or not math.isfinite(map_v):
             deltas.append(
                 {"site": name, "lat_deg": site.lat_deg, "lon_deg": site.lon_deg, "status": f"map_{st}"}
             )
@@ -76,6 +77,8 @@ def _run_compare(
                 "lat_deg": site.lat_deg,
                 "lon_deg": site.lon_deg,
                 "pgda_fraction": map_v,
+                "pgda_map_status": st,
+                "pgda_map_meta": map_meta,
                 "ours_fraction": ours,
                 "delta_pp": delta_pp,
                 "mask": "5m_pgda78",
@@ -149,6 +152,8 @@ def main() -> int:
     start, end = _nutation_window()
     payload = {
         "decision": "D-20261115-pj-9ab3",
+        "map_sampling": "D-20261122-pj-f8c2",
+        "site07_note": "D-20261122-pj-d1c4",
         "role": "validation_report_and_readme_only",
         "product": "average_solar_illumination_south",
         "span": {"start": str(start), "end": str(end), "nutation_years": NUTATION_YEARS},

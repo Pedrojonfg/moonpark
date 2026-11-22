@@ -10,7 +10,7 @@ domain: method & validation
 task: T-20261115-pj-98c4
 concepts: [PGDA 69 averages, illumination metrics]
 supersedes: []
-relates: [D-20261114-pj-f369, D-20261114-pj-41fa, D-20261115-pj-fe17, D-20261115-pj-1a9e]
+relates: [D-20261114-pj-f369, D-20261114-pj-41fa, D-20261115-pj-fe17, D-20261115-pj-1a9e, D-20261122-pj-f8c2]
 ai: recommended
 ---
 # S12 PGDA 69 protocol: ~18.6 y average illumination at PGDA-78 sites; report only

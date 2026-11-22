@@ -30,28 +30,75 @@ def pgda_pgda78_sites(root: Path) -> dict[str, Site]:
     return {k: v for k, v in out.items() if k.startswith("Site")}
 
 
-def pgda_map_fraction(tif: Path, site: Site) -> tuple[float, str]:
+PGDA_MAP_RADIUS_CELLS = 2  # D-f8c2: 5×5 window at map native posting
+
+
+def _read_pgda_cell(raw: float, src) -> float | None:
+    val = float(raw)
+    if src.scales and src.scales[0]:
+        val *= float(src.scales[0])
+    if src.offsets and src.offsets[0]:
+        val += float(src.offsets[0])
+    nodata = src.nodata
+    if nodata is not None and val == float(nodata):
+        return None
+    if not math.isfinite(val):
+        return None
+    return val
+
+
+def pgda_map_fraction(
+    tif: Path,
+    site: Site,
+    *,
+    radius_cells: int = PGDA_MAP_RADIUS_CELLS,
+) -> tuple[float, str, dict]:
+    """Mean PGDA illumination over a (2*radius+1)² cell window (D-f8c2)."""
     import rasterio
 
+    meta: dict = {
+        "map_sample": "window_mean",
+        "radius_cells": radius_cells,
+        "decision": "D-20261122-pj-f8c2",
+    }
     x, y = polar_stereo_xy(site.lat_deg, site.lon_deg)
     try:
         with rasterio.open(tif) as src:
             row, col = src.index(x, y)
             if row < 0 or col < 0 or row >= src.height or col >= src.width:
-                return float("nan"), "outside_raster"
-            val = float(src.read(1, window=((row, row + 1), (col, col + 1)))[0, 0])
-            if src.scales and src.scales[0]:
-                val *= float(src.scales[0])
-            if src.offsets and src.offsets[0]:
-                val += float(src.offsets[0])
+                return float("nan"), "outside_raster", meta
+            r0 = max(0, row - radius_cells)
+            r1 = min(src.height, row + radius_cells + 1)
+            c0 = max(0, col - radius_cells)
+            c1 = min(src.width, col + radius_cells + 1)
+            block = src.read(1, window=((r0, r1), (c0, c1)))
+            scale = float(src.scales[0]) if src.scales and src.scales[0] else 1.0
+            offset = float(src.offsets[0]) if src.offsets and src.offsets[0] else 0.0
             nodata = src.nodata
-            if nodata is not None and val == float(nodata):
-                return float("nan"), "nodata"
-            if not math.isfinite(val):
-                return float("nan"), "nodata"
-            return val, "ok"
+            vals: list[float] = []
+            for raw in block.ravel():
+                v = float(raw) * scale + offset
+                if nodata is not None and v == float(nodata):
+                    continue
+                if math.isfinite(v):
+                    vals.append(v)
+            point_raw = float(src.read(1, window=((row, row + 1), (col, col + 1)))[0, 0])
+            point = _read_pgda_cell(point_raw, src)
+            meta["pgda_fraction_point"] = point
+            meta["pgda_fraction_window_min"] = min(vals) if vals else None
+            meta["pgda_fraction_window_max"] = max(vals) if vals else None
+            meta["pgda_window_n_valid"] = len(vals)
+            if not vals:
+                return float("nan"), "nodata", meta
+            mean_v = float(sum(vals) / len(vals))
+            expected = (2 * radius_cells + 1) ** 2
+            clipped = (r1 - r0) * (c1 - c0) < expected
+            status = "ok"
+            if len(vals) < expected or clipped:
+                status = "partial_window"
+            return mean_v, status, meta
     except Exception:
-        return float("nan"), "unreadable"
+        return float("nan"), "unreadable", meta
 
 
 def fine_mask_5m(root: Path, site_name: str, site: Site) -> HorizonMask:

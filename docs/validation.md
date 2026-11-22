@@ -9,7 +9,7 @@ Evidence-gated (`D-de70`). Rows without a dated command + numbers remain **plann
 | Temporal step convergence | `D-7a51` | **run 2026-11-22** (WSL; kernels + cap on disk) | `python scripts/s12_temporal_convergence.py --force-run` |
 | Spatial cap vs fine mask | `D-7bd7` | **run 2026-11-22** (WSL; kernels + cap on disk) | `python scripts/s12_spatial_convergence.py --force-run` |
 | Short-night re-check | `D-39f3` (S1) | **run 2026-11-22** (cap vs 5 m, year 2027) | `python scripts/s12_short_night_recheck.py --force-run` |
-| PGDA 69 average illumination | `D-9ab3` (P1), role `D-fe17` | **run 2026-11-22** (report-only; soft claim fails) | `python scripts/s12_pgda69_compare.py --force-run` |
+| PGDA 69 average illumination | `D-9ab3` (P1), map mean `D-f8c2`, role `D-fe17` | **run 2026-11-22** (re-run after `D-f8c2`) | `python scripts/s12_pgda69_compare.py --force-run` |
 
 ## Short-night re-check (`D-39f3`)
 
@@ -83,13 +83,24 @@ Primary: \|Δ score\| = 0 and feasible match at all sites → no README 1 km tri
 
 ### Results
 
-**2026-11-22** — `python scripts/s12_pgda69_compare.py --force-run` (~2.5 min). Map `AVGVISIB_85S_060M_201608.TIF`; span 1997-12-21 → 2016-08-01 (18.6129 y); hourly mean sun disc fraction.
+**2026-11-22 (re-run, `D-f8c2`)** — `python scripts/s12_pgda69_compare.py --force-run` (~2.5 min). Map `AVGVISIB_85S_060M_201608.TIF`; span 1997-12-21 → 2016-08-01 (18.6129 y); hourly mean sun disc fraction. Map reference = **mean of 5×5 PGDA cells** at native 60 m posting (`D-f8c2`), not centre pixel only.
 
-| Site | PGDA | ours | Δ (pp) |
-|------|------|------|--------|
-| Site01 | 38.54 | 46.59 | +8.05 |
-| Site04 | 10.96 | 9.04 | −1.92 |
-| Site07 | 17.02 | 67.39 | +50.37 |
-| Site11 | 49.00 | 53.15 | +4.15 |
+| Site | PGDA (window mean) | PGDA (centre cell) | ours | Δ (pp) |
+|------|-------------------|--------------------|------|--------|
+| Site01 | 44.58 | 38.54 | 46.59 | +2.01 |
+| Site04 | 10.97 | 10.96 | 9.04 | −1.93 |
+| Site07 | 54.58 | 17.02 | 67.39 | +12.81 |
+| Site11 | 52.25 | 49.00 | 53.15 | +0.90 |
 
-Soft claim gate (`D-6dc3`): median \|Δ\| = 6.10 pp, max = 50.37 pp → **not OK** for README agreement. Site07 at −88.8° may need a coarser PGDA band product than the 85–90°S 60 m tile (follow-up). No product pass/fail in v1 (`D-9ab3`).
+Soft claim gate (`D-6dc3`): median \|Δ\| = **1.97 pp**, max = **12.81 pp** (Site07) → **not OK** for README agreement (max bound). Earlier same-day run used centre-pixel map only (Site07 Δ +50 pp); superseded for reporting by `D-f8c2`. No product pass/fail in v1 (`D-9ab3`).
+
+#### Site07 note (`D-d1c4`)
+
+- **Fixture:** `Site07` at −88.811°, 123.690° with PGDA-78 DEM `Site07_final_adj_5mpp_surf.tif` (internal id; NASA catalogue name not verified — see below).
+- **Fine horizon:** elevation mask &lt; ~1.3° in all azimuths (very open sky) → high long-term mean sun fraction (~67 %).
+- **PGDA 69 cliff:** centre 60 m cell **17 %**; 5×5 neighbours **17–86 %**; window mean **55 %**. Remaining Δ (+13 pp) is not explained by a single bad pixel alone.
+- **Short-night:** cap vs fine longest night in 2027 differs by **8 h** (document-only per `D-1a2d`).
+
+#### PGDA-78 “real name” (optional verify)
+
+Moonpark labels (`Site01` … `Site11`) match **Horizons fixtures** and **DEM filenames** from PGDA product **78** (5 m site mosaics). NASA’s product page lists **human site names** (e.g. Shackleton rim, Malapert Massif, Nobile Rim, Connecting Ridge) each with a published lat/lon and file bundle. **Catalog verify** means: for each `SiteNN`, record which NASA name and coordinates are the authority, and confirm our lat/lon/DEM tile are the same point—not a neighbouring peak or a typo. **Deferred** unless we need README prose or citations by proper name (`D-d1c4`).
