@@ -909,6 +909,7 @@ def deep_search_endpoint(body: DeepSearchBody):
                 "start": start_v,
                 "end": end_v,
             },
+            domain_boundary_at=[boundary_at[i] for i in range(len(sites))],
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"error": "deep_failed", "message": str(e)}) from e

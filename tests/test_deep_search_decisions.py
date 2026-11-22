@@ -40,7 +40,7 @@ REQUIREMENT_FIELDS = (
     "max_temperature_k", "min_temperature_k", "min_soil_resistance", "hazards_enabled",
 )
 
-# 3 cells (Site01 and its two neighbours along the cap), all inside the 1 km cap index.
+# Small rectangle around Site01; D-3e10 footprint membership may return more index cells than center-in-rect.
 RECT = {"lat_min": -89.52, "lat_max": -89.40, "lon_min": 222.0, "lon_max": 223.0}
 SITE01_LAT = -89.463162834037
 START = "2027-01-01T00:00:00Z"
@@ -235,7 +235,7 @@ def test_cell_without_hazard_data_is_dropped_and_counted(monkeypatch) -> None:
     rows = _rows(p)
     assert rows, "other cells must remain"
     assert all(abs(r["site"]["lat_deg"] - SITE01_LAT) > 1e-6 for r in rows), "dropped cell still in results"
-    assert len({round(r["site"]["lat_deg"], 6) for r in rows}) == 2
+    assert len({round(r["site"]["lat_deg"], 6) for r in rows}) >= 2
     assert p.get("dropped_cells") == 1
     codes = {w.get("code"): w for w in p.get("warnings") or []}
     assert "cells_dropped_hazard_data" in codes
@@ -255,7 +255,7 @@ def test_nothing_dropped_when_hazards_disabled(monkeypatch) -> None:
 def test_missing_psr_map_never_drops(monkeypatch) -> None:
     _patch_hazards(monkeypatch, _FakeHazards(drop_site01=False, psr_missing=True))
     p = _deep({"hazards_enabled": True}).json()
-    assert len({round(r["site"]["lat_deg"], 6) for r in _rows(p)}) == 3
+    assert len({round(r["site"]["lat_deg"], 6) for r in _rows(p)}) >= 3
     assert p.get("dropped_cells") == 0
     assert "cells_dropped_hazard_data" not in {w.get("code") for w in p.get("warnings") or []}
 

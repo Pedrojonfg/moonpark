@@ -117,7 +117,17 @@ class _Stopped(Exception):
 def _cp_entry(key: tuple[int, int], row: dict | None) -> list:
     if row is None:  # evaluated, cell lacked data the search needs (dropped)
         return [key[0], key[1], None]
-    return [key[0], key[1], [row["feasible"], row["score"], row["companion_score"], row["hazard_gap_star"]]]
+    return [
+        key[0],
+        key[1],
+        [
+            row["feasible"],
+            row["score"],
+            row["companion_score"],
+            row["hazard_gap_star"],
+            bool(row.get("domain_boundary", False)),
+        ],
+    ]
 
 
 def _index(v: Any, n: int, what: str) -> int:
@@ -157,10 +167,11 @@ def _validated_resume(resume: Any, fingerprint: dict, n_starts: int, n_sites: in
             cache[(si, ti)] = None
             dropped.add(si)
             continue
-        if (not isinstance(vals, list) or len(vals) != 4 or not isinstance(vals[0], bool)
-                or not isinstance(vals[3], bool)):
+        if not isinstance(vals, list) or len(vals) not in (4, 5) or not isinstance(vals[0], bool) or not isinstance(
+            vals[3], bool
+        ):
             raise ValueError(f"resume checkpoint: bad row values {vals!r}")
-        cache[(si, ti)] = make_row(si, ti, [vals[0], _number(vals[1]), _number(vals[2]), vals[3]])
+        cache[(si, ti)] = make_row(si, ti, [vals[0], _number(vals[1]), _number(vals[2]), vals[3], *vals[4:]])
     return ns
 
 
@@ -180,6 +191,7 @@ def deep_search(
     should_stop: Callable[[], bool] | None = None,
     resume: dict | None = None,
     fingerprint_extra: dict | None = None,
+    domain_boundary_at: Sequence[bool] | None = None,
 ) -> dict[str, Any]:
     """Search site×time in a user range. # per D-54f0 D-c159 D-20261118-pj-1454 D-75f1
 
@@ -228,6 +240,13 @@ def deep_search(
 
     def make_row(si: int, ti: int, vals: list) -> dict:
         s = site_list[si]
+        boundary = (
+            bool(vals[4])
+            if len(vals) > 4
+            else bool(domain_boundary_at[si])
+            if domain_boundary_at is not None and si < len(domain_boundary_at)
+            else False
+        )
         return {
             "site": {"lat_deg": s.lat_deg, "lon_deg": s.lon_deg},
             "window_start": np.datetime64(starts[ti], "s"),
@@ -236,6 +255,7 @@ def deep_search(
             "score": float(vals[1]),
             "companion_score": float(vals[2]),
             "hazard_gap_star": bool(vals[3]),
+            "domain_boundary": boundary,
         }
 
     if resume:
