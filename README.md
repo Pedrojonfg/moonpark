@@ -103,8 +103,8 @@ The project only claims what has been checked:
 |-------|--------|
 | SPICE Sun/Earth azimuth and elevation match saved JPL Horizons tables | Automated test (`pytest`) |
 | Score is 0 when a mission limit is missed, and above 0 when all are met | Automated test (`pytest`) |
-| Short-night re-check on long-night sites | Not implemented yet |
-| Comparison with NASA PGDA average-illumination maps | Not implemented yet |
+| Short-night re-check (cap 1 km vs fine 5 m mask) | Run 2026-11-22 — see [`docs/validation.md`](docs/validation.md); Site07 exceeds 5 h tolerance (documented) |
+| Comparison with NASA PGDA average-illumination maps | Run 2026-11-22 — harness + numbers in validation doc; **no README claim of agreement** (soft gate fails; Site07 outlier under review) |
 
 Details and how to run each check: [`docs/validation.md`](docs/validation.md).
 
@@ -147,9 +147,12 @@ Details and how to run each check: [`docs/validation.md`](docs/validation.md).
 - **Hazards are simple proxies.** Temperature comes from climatology, not a
   thermal model of your lander. The "dust" layer is a soil-resistance proxy
   from slope. It does not model dust lofted by the plume.
-- **Not every check has been run yet.** The two independent comparisons above
-  have their scripts ready but no results yet. Until they run, there is no
-  claim of agreement with PGDA maps.
+- **PGDA comparison is report-only.** Scripts and a 2026-11-22 run are in
+  [`docs/validation.md`](docs/validation.md). Median \|ours − map\| is ~6 pp
+  with one site (Site07) far off; do not claim validated agreement with NASA
+  PGDA 69 maps until that is resolved (`D-6dc3`, `D-fe17`).
+- **1 km cap can mis-estimate longest night** on some sites (short-night
+  re-check): cap vs fine differed by up to 8 h at Site07 in 2027; see validation doc.
 - **South pole only, Moon only.** The code leaves room for other bodies, but
   only the lunar south polar cap is built and tested.
 
@@ -223,9 +226,8 @@ The ion tileset is also the automatic fallback when a site has no DEM on disk.
   the full south polar cap.
 - **Browser demo with real data:** the browser demo is still mocked; the
   engine needs Python, so it only runs inside the desktop app.
-- **Run the remaining validation:** the short-night re-check and the PGDA
-  illumination comparison, with results published in
-  [`docs/validation.md`](docs/validation.md).
+- **Site07 validation follow-up:** PGDA Δ and cap-vs-fine longest-night
+  outliers; see [`docs/validation.md`](docs/validation.md).
 - **Demo video** once the interface is final.
 
 ## Repo layout
