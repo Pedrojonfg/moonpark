@@ -8,8 +8,8 @@ Evidence-gated (`D-de70`). Rows without a dated command + numbers remain **plann
 | Horizons apparent az/el | `D-c403` | **CI** — ≥8 case blocks at 0.05° (`tests/test_ephemeris.py`) | `pytest tests/test_ephemeris.py` |
 | Temporal step convergence | `D-7a51` | **run 2026-11-22** (WSL; kernels + cap on disk) | `python scripts/s12_temporal_convergence.py --force-run` |
 | Spatial cap vs fine mask | `D-7bd7` | **run 2026-11-22** (WSL; kernels + cap on disk) | `python scripts/s12_spatial_convergence.py --force-run` |
-| Short-night re-check | `D-39f3` (S1) | **planned** — harness is a skeleton, comparison not implemented | `python scripts/s12_short_night_recheck.py` |
-| PGDA 69 average illumination | `D-9ab3` (P1), role `D-fe17` | **planned** — harness is a skeleton, comparison not implemented | `python scripts/s12_pgda69_compare.py` |
+| Short-night re-check | `D-39f3` (S1) | **run 2026-11-22** (cap vs 5 m, year 2027) | `python scripts/s12_short_night_recheck.py --force-run` |
+| PGDA 69 average illumination | `D-9ab3` (P1), role `D-fe17` | **run 2026-11-22** (report-only; soft claim fails) | `python scripts/s12_pgda69_compare.py --force-run` |
 
 ## Short-night re-check (`D-39f3`)
 
@@ -20,7 +20,16 @@ Evidence-gated (`D-de70`). Rows without a dated command + numbers remain **plann
 
 ### Results
 
-_No overnight run recorded yet._
+**2026-11-22** — `python scripts/s12_short_night_recheck.py --force-run --year 2027` (~29 s). Longest night (h), cap 1 km vs fine 5 m PGDA-78, bridge 5 h.
+
+| Site | cap | fine | error (h) | > 5 h |
+|------|-----|------|-----------|-------|
+| Site01 | 496 | 496 | 0 | no |
+| Site04 | 4902 | 4902 | 0 | no |
+| Site07 | 386 | 394 | −8 | **yes** |
+| Site11 | 436 | 431 | +5 | at limit |
+
+Per `D-1a2d`: document only — no automatic success\_y reopen. Site07 cap underrates longest night by 8 h vs fine 5 m.
 
 ## Temporal convergence (`D-7a51`)
 
@@ -74,4 +83,13 @@ Primary: \|Δ score\| = 0 and feasible match at all sites → no README 1 km tri
 
 ### Results
 
-_No overnight run recorded yet._
+**2026-11-22** — `python scripts/s12_pgda69_compare.py --force-run` (~2.5 min). Map `AVGVISIB_85S_060M_201608.TIF`; span 1997-12-21 → 2016-08-01 (18.6129 y); hourly mean sun disc fraction.
+
+| Site | PGDA | ours | Δ (pp) |
+|------|------|------|--------|
+| Site01 | 38.54 | 46.59 | +8.05 |
+| Site04 | 10.96 | 9.04 | −1.92 |
+| Site07 | 17.02 | 67.39 | +50.37 |
+| Site11 | 49.00 | 53.15 | +4.15 |
+
+Soft claim gate (`D-6dc3`): median \|Δ\| = 6.10 pp, max = 50.37 pp → **not OK** for README agreement. Site07 at −88.8° may need a coarser PGDA band product than the 85–90°S 60 m tile (follow-up). No product pass/fail in v1 (`D-9ab3`).

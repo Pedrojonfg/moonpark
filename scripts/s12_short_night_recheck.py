@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""S12 short-night re-check harness (D-39f3, D-1a9e).
+"""S12 short-night re-check harness (D-39f3, D-1a2d, D-814a).
 
-Heavy DEM/mask work is overnight. This script records a run stub or SKIP
-when data is missing; it does not invent pass numbers. With ``--validation-full``,
-missing DEM exits 2 (D-b591).
+Compare longest night (h) for calendar year: cap 1 km mask vs fine 5 m mask (PGDA-78).
 """
 
 from __future__ import annotations
@@ -14,28 +12,60 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "docs" / "validation.md"
-SITE01 = {"name": "Site01", "lat_deg": -89.46316, "lon_deg": 222.51045}
 SCRIPT_ID = "s12_short_night_recheck"
+TOLERANCE_H = 5
+BRIDGE_H = 5
+
+
+def _dem_ok() -> bool:
+    dem = ROOT / "data" / "dem"
+    return dem.is_dir() and any(dem.glob("*.TIF"))
+
+
+def _run(year: int, *, resume_rows: list[dict], resume_at: int) -> tuple[list[dict], str]:
+    sys.path.insert(0, str(ROOT))
+    from scripts.s12_validation_lib import cap_mask, fine_mask_5m, longest_night_hours, pgda_pgda78_sites
+
+    start = np.datetime64(f"{year}-01-01T00:00:00", "s")
+    end = np.datetime64(f"{year}-12-31T23:00:00", "s")
+    sites = pgda_pgda78_sites(ROOT)
+    names = sorted(sites)
+    rows = list(resume_rows)
+    for idx, name in enumerate(names):
+        if idx < resume_at:
+            continue
+        site = sites[name]
+        cap_h = longest_night_hours(site, cap_mask(site), start, end)
+        fine_h = longest_night_hours(site, fine_mask_5m(ROOT, name, site), start, end)
+        err = cap_h - fine_h
+        rows.append(
+            {
+                "site": name,
+                "lat_deg": site.lat_deg,
+                "lon_deg": site.lon_deg,
+                "year": year,
+                "longest_night_cap_h": cap_h,
+                "longest_night_fine_h": fine_h,
+                "error_h": err,
+                "abs_error_h": abs(err),
+            }
+        )
+    over = [r for r in rows if r.get("abs_error_h", 0) > TOLERANCE_H]
+    return rows, "complete", over
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--year", type=int, default=2027, help="fixed test year (pin in report)")
+    p.add_argument("--year", type=int, default=2027)
     p.add_argument("--json-out", type=Path, default=None)
-    p.add_argument(
-        "--force-run",
-        action="store_true",
-        help="reserved for overnight: compute schedule vs fine reference (not implemented without DEM wiring)",
-    )
-    p.add_argument(
-        "--validation-full",
-        action="store_true",
-        help="fail (exit 2) when DEM is missing instead of SKIP success",
-    )
-    p.add_argument("--checkpoint", type=Path, default=None, help="resumable progress file (D-814a)")
-    p.add_argument("--resume", action="store_true", help="continue from --checkpoint when present")
+    p.add_argument("--force-run", action="store_true")
+    p.add_argument("--validation-full", action="store_true")
+    p.add_argument("--checkpoint", type=Path, default=None)
+    p.add_argument("--resume", action="store_true")
     args = p.parse_args()
 
     sys.path.insert(0, str(ROOT))
@@ -43,28 +73,48 @@ def main() -> int:
 
     prior = load_checkpoint(args.checkpoint) if args.resume else None
     if prior and prior.get("script") == SCRIPT_ID and prior.get("status") == "complete":
-        print(json.dumps(prior, indent=2))
+        print(json.dumps(prior.get("payload") or prior, indent=2))
         return 0
 
-    dem = ROOT / "data" / "dem"
-    has_dem = dem.is_dir() and any(dem.glob("*.TIF"))
-    status = "SKIP_NO_DEM" if not has_dem else "HARNESS_READY_AWAITING_OVERNIGHT"
+    has_dem = _dem_ok()
     if not has_dem and (args.force_run or args.validation_full):
         print("error: validation-full needs DEM tiles under data/dem/", file=sys.stderr)
         return 2
 
+    resume_rows: list[dict] = []
+    resume_at = 0
+    if prior and prior.get("script") == SCRIPT_ID:
+        resume_rows = list(prior.get("comparisons") or [])
+        resume_at = len(resume_rows)
+
+    comparisons: list[dict] = []
+    over_tol: list[dict] = []
+    if not args.force_run or not has_dem:
+        status = "SKIP_NO_DEM" if not has_dem else "HARNESS_READY_AWAITING_OVERNIGHT"
+    else:
+        comparisons, status, over_tol = _run(args.year, resume_rows=resume_rows, resume_at=resume_at)
+        for i, _ in enumerate(comparisons):
+            save_checkpoint(
+                args.checkpoint,
+                {
+                    "version": 1,
+                    "script": SCRIPT_ID,
+                    "status": "partial" if i + 1 < len(comparisons) else status,
+                    "next_site_index": i + 1,
+                    "comparisons": comparisons[: i + 1],
+                },
+            )
+
     payload = {
         "decision": "D-20261115-pj-39f3",
-        "mode": "separate_report_reopen_y_if_over_tol",
-        "tolerance_h": 5,
-        "bridge_h": 5,
+        "mode": "document_only_on_fail_D-1a2d",
+        "tolerance_h": TOLERANCE_H,
+        "bridge_h": BRIDGE_H,
         "year": args.year,
-        "sites": [SITE01],
-        "status": status,
-        "note": (
-            "Overnight: compare schedule mask longest_night/lit vs fine reference; "
-            "if abs error > 5 h, reopen success_y via a new decision."
-        ),
+        "status": status if args.force_run else ("SKIP_NO_DEM" if not has_dem else "HARNESS_READY_AWAITING_OVERNIGHT"),
+        "comparisons": comparisons,
+        "over_tolerance": over_tol,
+        "reopen_y": bool(over_tol),
         "recorded_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -77,14 +127,14 @@ def main() -> int:
         {
             "version": 1,
             "script": SCRIPT_ID,
-            "status": "complete" if status != "HARNESS_READY_AWAITING_OVERNIGHT" else "stub",
-            "next_site_index": len(payload["sites"]) if status == "complete" else 0,
+            "status": "complete" if payload["status"] == "complete" else "stub",
+            "comparisons": comparisons,
             "payload": payload,
         },
     )
 
     print(json.dumps(payload, indent=2))
-    print(f"\n# Update {VALIDATION} Results section after a real overnight compute.", file=sys.stderr)
+    print(f"\n# Update {VALIDATION} Results section.", file=sys.stderr)
     return 0
 
 

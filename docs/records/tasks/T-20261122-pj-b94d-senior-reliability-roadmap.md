@@ -95,7 +95,9 @@ None.
 
 ## Build
 
-2026-11-22 implementation pass on `main`: themes 1–7 built; default `pytest` green; S12 harnesses including `s12_temporal_convergence` (D-7a51) and `s12_spatial_convergence` (D-7bd7) with checkpoints; LaTeX junk untracked. **Verify:** pj overnight/local `--force-run` fills `docs/validation.md`; optional `validation_full` workflow when PGDA/DEM exist; push when ready.
+2026-11-22 implementation pass on `main`: themes 1–7 built; default `pytest` green; S12 harnesses including `s12_temporal_convergence` (D-7a51) and `s12_spatial_convergence` (D-7bd7) with checkpoints; LaTeX junk untracked.
+
+**Verify (2026-11-22 WSL):** all S12 `--force-run` rows filled in `docs/validation.md`; `pytest -m validation_full` green with PGDA+DEM on disk (~3 min gate); short-night Site07 \|error\|=8 h (document reopen Y); PGDA soft claim fails (Site07 +50 pp outlier — map band follow-up). Run logs under `logs/validation/` (local, not in git). Push when pj ready.
 
 ## Audit
 
