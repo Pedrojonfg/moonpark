@@ -642,24 +642,9 @@ _DEEP_JOBS_LOCK = threading.Lock()
 
 def _evaluation_needs(needs: dict, step_min: int, hazards_enabled: bool):
     """(score needs, energy params, payload needs) exactly as build_planner_payload derives them for /site."""
-    from moonpark.energy import params_from_needs
-    from moonpark.planner_templates import HAZARD_LIMITS_DEFAULT
+    from moonpark.planner_payload import build_score_needs
 
-    energy = params_from_needs(needs)
-    score_needs: dict[str, Any] = {
-        "max_night_h": int(needs.get("max_night_h", 0)),
-        "max_no_earth_h": int(needs["max_no_earth_h"]),
-        "require_both": bool(needs.get("require_both", False)),
-        "min_continuous_lit_h": int(needs.get("min_continuous_lit_h", 0)),
-        "min_total_lit_h": float(needs.get("min_total_lit_h", 0) or 0),
-    }
-    if energy is not None:
-        score_needs["energy_reserve_frac"] = energy.reserve_frac
-    if hazards_enabled:
-        for key, default in HAZARD_LIMITS_DEFAULT.items():
-            limit = needs[key] if key in needs else default
-            if limit is not None:
-                score_needs[key] = float(limit)
+    score_needs, energy = build_score_needs(needs, hazards_enabled)
     sun_pct, earth_pct = float(needs["sun_lit_percent"]), float(needs["earth_lit_percent"])
     payload_needs = {
         **score_needs,
@@ -781,12 +766,10 @@ def deep_search_endpoint(body: DeepSearchBody):
     from moonpark.horizon.cap_index import (
         cap_index_available,
         is_domain_boundary_cell,
-        mask_from_cap_tile,
         sites_in_latlon_rect,
     )
-    from moonpark.planner_payload import hazard_status, kernels_available, parse_time_window
+    from moonpark.planner_payload import evaluate_site_window, kernels_available, parse_time_window
     from moonpark.search.deep import DEFAULT_LEADERBOARD_N, DEFAULT_TMAX_S
-    from moonpark.visibility import series as vis_series
 
     if not kernels_available():
         raise HTTPException(
@@ -837,47 +820,34 @@ def deep_search_endpoint(body: DeepSearchBody):
     }
 
     eph = SpiceEphemeris()
-    sun_thr, earth_thr = requirements["sun_lit_threshold"], requirements["earth_lit_threshold"]
-    bridge = 0 if energy else int(requirements["bridge_h"])  # bridge_h is the no-battery-data fallback only
-    if hz_on:
-        from moonpark.hazards import default_moon_hazards  # looked up per request
-
-        hazard_provider = default_moon_hazards()
     sky_by_site: dict[int, list] = {}
+    eval_needs = dict(needs)
+    eval_needs.setdefault("template_id", body.template_id)
 
     def evaluate(candidate, start, hours: int) -> dict | None:
-        # Same computation as /site (build_planner_payload) on the cell's 1 km cap mask. The engine caches each
-        # (cell, window start), so hazards run once per cell and window.
         idx = index_of.get((candidate.lat_deg, candidate.lon_deg))
         if idx is None:
             raise ValueError("site not in rect cells")
-        _site, _x, _y, tx, ty, row = cells[idx]
-        horizon = mask_from_cap_tile(tx, ty, row)
         if idx not in sky_by_site:
             sky_by_site[idx] = eph.sky(candidate, fine_span)
         i0 = int((np.datetime64(start, "s") - np.datetime64(fine_span[0], "s")) / np.timedelta64(step_m, "m"))
         n = int(hours) * 60 // step_m + 1
-        vis = vis_series(
-            sky_by_site[idx][i0 : i0 + n],
-            horizon,
-            sun_threshold=sun_thr,
-            earth_threshold=earth_thr,
-            bridge_h=bridge,
+        win_times = fine_span[i0 : i0 + n]
+        ev = evaluate_site_window(
+            candidate,
+            win_times,
+            needs=eval_needs,
+            sun_lit_percent=float(needs["sun_lit_percent"]),
+            earth_lit_percent=float(needs["earth_lit_percent"]),
+            bridge_h=int(needs["bridge_h"]),
+            hazards_enabled=hz_on,
             step_min=step_m,
-            energy=energy,
+            drop_if_hazard_data_missing=True,
+            sky_samples=sky_by_site[idx][i0 : i0 + n],
         )
-        vis = {k: (np.asarray(v, dtype=float).tolist() if k in ("sun_fraction", "earth_fraction", "soc") else v)
-               for k, v in vis.items()}
-        hz: dict = {}
-        if hz_on:
-            hz = hazard_provider.hazards(candidate, fine_span[i0 : i0 + n])
-            if hazard_status(True, hz, score_needs)[1]:
-                return None  # D-75f1: the cell lacks hazard data this search needs -> dropped and counted
-        return {
-            "series": vis,
-            "hazards": hz,
-            "domain_boundary": boundary_at.get(idx, False),
-        }
+        if ev is None:
+            return None
+        return {**ev, "domain_boundary": boundary_at.get(idx, False)}
 
     job_id = body.job_id
     stop_ev = threading.Event()

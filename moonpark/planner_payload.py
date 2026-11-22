@@ -211,6 +211,71 @@ def _series_json(raw: dict) -> dict:
     return out
 
 
+def build_score_needs(needs: dict[str, Any], hazards_enabled: bool):
+    """Score inputs shared by /site and deep-search (D-20261122-pj-7c4e)."""
+    from moonpark.energy import params_from_needs
+    from moonpark.planner_templates import HAZARD_LIMITS_DEFAULT
+
+    energy = params_from_needs(needs)
+    score_needs: dict[str, Any] = {
+        "max_night_h": int(needs.get("max_night_h", 0)),
+        "max_no_earth_h": int(needs["max_no_earth_h"]),
+        "require_both": bool(needs.get("require_both", False)),
+        "min_continuous_lit_h": int(needs.get("min_continuous_lit_h", 0)),
+        "min_total_lit_h": float(needs.get("min_total_lit_h", 0) or 0),
+    }
+    if energy is not None:
+        score_needs["energy_reserve_frac"] = energy.reserve_frac
+    if hazards_enabled:
+        for key, default in HAZARD_LIMITS_DEFAULT.items():
+            limit = needs[key] if key in needs else default
+            if limit is not None:
+                score_needs[key] = float(limit)
+    return score_needs, energy
+
+
+def evaluate_site_window(
+    site: Site,
+    times: np.ndarray,
+    *,
+    needs: dict[str, Any],
+    sun_lit_percent: float,
+    earth_lit_percent: float,
+    bridge_h: int,
+    hazards_enabled: bool,
+    step_min: int,
+    drop_if_hazard_data_missing: bool = False,
+    sky_samples: list | None = None,
+) -> dict | None:
+    """Visibility + hazards for one window; finest mask when available (D-7c4e). None = drop cell (D-75f1)."""
+    from moonpark.ephemeris import SpiceEphemeris
+    from moonpark.hazards import ConstantHazards, default_moon_hazards
+    from moonpark.visibility import series
+
+    sun_thr = max(0.0, min(100.0, float(sun_lit_percent))) / 100.0
+    earth_thr = max(0.0, min(100.0, float(earth_lit_percent))) / 100.0
+    score_needs, energy = build_score_needs(needs, hazards_enabled)
+    horizon = mask_for_site(site)
+    sky = sky_samples if sky_samples is not None else SpiceEphemeris().sky(site, times)
+    vis = series(
+        sky,
+        horizon,
+        sun_threshold=sun_thr,
+        earth_threshold=earth_thr,
+        bridge_h=0 if energy is not None else int(bridge_h),
+        step_min=int(step_min),
+        energy=energy,
+    )
+    hazard_provider = default_moon_hazards() if hazards_enabled else ConstantHazards()
+    raw_hz = hazard_provider.hazards(site, times)
+    hazards_payload = raw_hz if hazards_enabled else {}
+    if drop_if_hazard_data_missing and hazards_enabled:
+        _, not_evaluated, _ = hazard_status(hazards_enabled, raw_hz, score_needs)
+        if not_evaluated:
+            return None
+    return {"series": _series_json(vis), "hazards": hazards_payload, "raw_hz": raw_hz}
+
+
 def build_planner_payload(
     site: Site,
     times: np.ndarray,
@@ -224,53 +289,30 @@ def build_planner_payload(
     step_min: int = 60,
 ) -> dict:
     from moonpark.ephemeris import SpiceEphemeris
-    from moonpark.hazards import ConstantHazards, default_moon_hazards
-    from moonpark.planner_templates import HAZARD_LIMITS_DEFAULT
     from moonpark.score import score
-    from moonpark.visibility import series
 
     sun_thr = max(0.0, min(100.0, float(sun_lit_percent))) / 100.0
     earth_thr = max(0.0, min(100.0, float(earth_lit_percent))) / 100.0
 
-    horizon = mask_for_site(site)
     sky_samples = SpiceEphemeris().sky(site, times)
-    from moonpark.energy import params_from_needs
-
-    energy = params_from_needs(needs)  # tier 1 complete => energy mode (D-20261117-pj-7b2d)
-    vis = series(
-        sky_samples,
-        horizon,
-        sun_threshold=sun_thr,
-        earth_threshold=earth_thr,
-        bridge_h=0 if energy else int(bridge_h),  # bridge_h is the no-battery-data fallback only
-        step_min=int(step_min),
-        energy=energy,
+    ev = evaluate_site_window(
+        site,
+        times,
+        needs=needs,
+        sun_lit_percent=sun_lit_percent,
+        earth_lit_percent=earth_lit_percent,
+        bridge_h=bridge_h,
+        hazards_enabled=hazards_enabled,
+        step_min=step_min,
+        sky_samples=sky_samples,
     )
+    assert ev is not None
+    hazards_payload = ev["hazards"]
+    raw_hz = ev["raw_hz"]
+    score_needs, energy = build_score_needs(needs, hazards_enabled)
+    horizon = mask_for_site(site)
 
-    hazard_provider = default_moon_hazards() if hazards_enabled else ConstantHazards()
-    raw_hz = hazard_provider.hazards(site, times)
-    hazards_payload = raw_hz if hazards_enabled else {}
-
-    score_needs = {
-        "max_night_h": int(needs.get("max_night_h", 0)),
-        "max_no_earth_h": int(needs["max_no_earth_h"]),
-        "require_both": bool(needs.get("require_both", False)),
-        "min_continuous_lit_h": int(needs.get("min_continuous_lit_h", 0)),
-        "min_total_lit_h": float(needs.get("min_total_lit_h", 0) or 0),
-    }
-    if energy is not None:
-        score_needs["energy_reserve_frac"] = energy.reserve_frac
-    if hazards_enabled:
-        # Limits: explicit in `needs` (None = switched off), else the global default (D-20261117-pj-0c5e).
-        # A limit stays in the requirements even when its data is missing (D-20261118-pj-b3dc): the missing
-        # quantity is None, never a substitute, so score() leaves it out of layer 0 and the margins, flags
-        # hazard_gap_star, and the payload lists the limit under needs.not_evaluated with a warning.
-        for key, default in HAZARD_LIMITS_DEFAULT.items():
-            limit = needs[key] if key in needs else default
-            if limit is not None:
-                score_needs[key] = float(limit)
-
-    scored = score(_series_json(vis), hazards_payload, score_needs)
+    scored = score(ev["series"], hazards_payload, score_needs)
     if hazards_enabled:
         scored["provenance"]["hazards"] = "moon_layer_b"
     else:
@@ -290,7 +332,7 @@ def build_planner_payload(
             "cached": True,
         },
         "sky": [_sky_row(s) for s in sky_samples],
-        "series": _series_json(vis),
+        "series": ev["series"],
         "score": scored,
         "hazards_enabled": hazards_enabled,
         "hazards": hazards_payload,
