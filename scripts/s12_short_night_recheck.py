@@ -2,7 +2,8 @@
 """S12 short-night re-check harness (D-39f3, D-1a9e).
 
 Heavy DEM/mask work is overnight. This script records a run stub or SKIP
-when data is missing; it does not invent pass numbers.
+when data is missing; it does not invent pass numbers. With ``--validation-full``,
+missing DEM exits 2 (D-b591).
 """
 
 from __future__ import annotations
@@ -27,13 +28,18 @@ def main() -> int:
         action="store_true",
         help="reserved for overnight: compute schedule vs fine reference (not implemented without DEM wiring)",
     )
+    p.add_argument(
+        "--validation-full",
+        action="store_true",
+        help="fail (exit 2) when DEM is missing instead of SKIP success",
+    )
     args = p.parse_args()
 
     dem = ROOT / "data" / "dem"
     has_dem = dem.is_dir() and any(dem.glob("*.TIF"))
     status = "SKIP_NO_DEM" if not has_dem else "HARNESS_READY_AWAITING_OVERNIGHT"
-    if args.force_run and not has_dem:
-        print("error: --force-run needs DEM tiles under data/dem/", file=sys.stderr)
+    if not has_dem and (args.force_run or args.validation_full):
+        print("error: validation-full needs DEM tiles under data/dem/", file=sys.stderr)
         return 2
 
     payload = {

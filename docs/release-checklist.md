@@ -1,7 +1,7 @@
 # Release checklist (prepared overnight 2026-11-17; updated 2026-11-22)
 
 ## Verified
-- CI workflow `desktop-release.yml` built the installers on Linux, Windows and macOS (run 44186563271, all green), each with a smoke test of the bundled engine (`/health` and `/site?mock=1&local_search=1` with a non-empty leaderboard).
+- CI workflow `desktop-release.yml` built the installers on Linux, Windows and macOS (run 44186563271, all green), each with install-acceptance smoke (`docs/install-acceptance.md`): `/health`, `/session-memory`, mock `/site` local search, mock `POST /deep-search`.
 - Linux: `deploy/build-desktop.sh` produced deb, rpm and AppImage locally. The release binary launched under xvfb, started the engine on a free loopback port, and `/health` and the mock local search answered.
 - `scripts/publish_masks.py --dry-run` builds both manifests (cap_1km: 90 files, ~896 MB with fill stats; data: 416 files / 2737 MB including relief cuts).
 - **2026-11-21 WSL:** AppImage rebuild finished (`moonpark_0.1.0_amd64.AppImage`, also copied to `~/apps/moonpark.AppImage`). Bundled `moonpark-api --port …` returns `/health` ok and mock `/site?mock=1&local_search=1` with a 47-entry leaderboard.
@@ -13,6 +13,7 @@
 ## Not verified
 - The UI of the packaged app was not looked at (no screenshot under xvfb); only the engine side was exercised.
 - Windows and macOS installers were built but never launched on real machines.
+- **macOS:** no maintainer claim of “tested on Mac”; disclaimer required in release copy (`D-a91c`).
 - macOS and Windows builds are unsigned: expect Gatekeeper / SmartScreen warnings.
 
 ## Remaining

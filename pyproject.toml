@@ -27,4 +27,7 @@ include = ["moonpark*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not validation_full'"
+markers = [
+    "validation_full: heavy S12 runs; requires PGDA/DEM on disk (D-b591)",
+]

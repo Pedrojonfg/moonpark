@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """S12 PGDA 69 comparison harness (D-9ab3, D-fe17, D-1a9e).
 
-Full ~18.6 y site loop is overnight. Without the PGDA 69 map on disk this
-exits 0 with SKIP and does not claim validation numbers.
+Full ~18.6 y site loop is overnight. Without the PGDA 69 map on disk the default
+run exits 0 with SKIP and does not claim validation numbers. With
+``--validation-full`` a missing file exits 2 (CI honesty, D-b591).
 """
 
 from __future__ import annotations
@@ -36,11 +37,16 @@ def main() -> int:
         action="store_true",
         help="reserved for overnight full comparison (needs PGDA 69 file + masks)",
     )
+    p.add_argument(
+        "--validation-full",
+        action="store_true",
+        help="fail (exit 2) when PGDA 69 file is missing instead of SKIP success",
+    )
     args = p.parse_args()
 
     pgda = _find_pgda69()
     status = "SKIP_NO_PGDA69_FILE" if pgda is None else "HARNESS_READY_AWAITING_OVERNIGHT"
-    if args.force_run and pgda is None:
+    if pgda is None and (args.force_run or args.validation_full):
         print("error: place PGDA 69 average solar illumination under data/", file=sys.stderr)
         return 2
 

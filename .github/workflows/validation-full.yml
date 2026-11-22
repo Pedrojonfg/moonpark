@@ -1,0 +1,18 @@
+name: Validation full
+
+# Heavy S12 inputs (PGDA 69, DEM). Fails clearly when data is absent (D-b591).
+on:
+  workflow_dispatch:
+
+jobs:
+  validation_full:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: validation_full (fails if PGDA/DEM absent)
+        run: pytest -m validation_full
