@@ -118,9 +118,9 @@ Details and how to run each check: [`docs/validation.md`](docs/validation.md).
   request needs, checks a sha256, caches it under the user cache directory
   (`LUNAR_CACHE` to change it) and works offline afterwards.
   `LUNAR_STORE_URL=off` disables the download. Elevation models (~11 GB) are
-  only needed to regenerate masks, never on a client. Until the data set is published to the store, or with no network, the app
-  falls back to **mock mode**, labelled as mocked. `scripts/publish_masks.py`
-  uploads a new data set.
+  only needed to regenerate masks, never on a client. With no network and an
+  empty cache the app falls back to **mock mode**, labelled as mocked.
+  `scripts/publish_masks.py` uploads a new data set.
 - **Without DEMs a site snaps to its 1 km cell.** A client machine has no
   elevation models, so any site takes the mask of the nearest 1 km cap cell
   (up to ~0.7 km away).
@@ -131,12 +131,13 @@ Details and how to run each check: [`docs/validation.md`](docs/validation.md).
   Python evaluator as a Tauri sidecar that the app starts and stops itself, on
   a loopback port. Installers are built once per operating system. In
   development you can still run `deploy/run-local.sh` (API with auto-reload
-  plus the UI dev server). A GitHub Actions workflow
-  (`.github/workflows/desktop-release.yml`) builds the installers for Linux,
-  Windows and macOS. They are not published as a release yet.
-- **The 3D view needs a Cesium ion token** (free account) whose account has
-  *Cesium Moon Terrain* (asset 2684829) added from the ion Asset Depot.
-  Without both you get the 2D panorama.
+  plus the UI dev server). Installers for Linux, Windows and macOS are in the
+  [v0.1.0 release](https://github.com/Pedrojonfg/moonpark/releases/tag/v0.1.0)
+  (unsigned; Windows and macOS have not been run on real machines yet).
+- **The 3D view defaults to our own LOLA relief** (procedural surface, no token).
+  A free Cesium ion token with *Cesium Moon Terrain* (asset 2684829) is optional
+  for the textured ion backdrop. Without own relief and without a token you get
+  the 2D panorama.
 - **Mission presets are approximations.** Preset thresholds are planning
   values based on public mission profiles. They are not official requirements.
 - **Hazards are simple proxies.** Temperature comes from climatology, not a
@@ -212,9 +213,8 @@ The ion tileset is also the automatic fallback when a site has no DEM on disk.
 
 ## What's next
 
-- **Desktop release:** the installers build in CI; what is left is uploading
-  the data to the store, launching the packaged app on each OS and publishing
-  the first release.
+- **Try the installers on Windows and macOS** (CI builds them; they have not
+  been run on real machines yet) and, later, code signing.
 - **Finer masks over the whole cap:** move from 1 km to 100 m spacing over
   the full south polar cap.
 - **Browser demo with real data:** the browser demo is still mocked; the
