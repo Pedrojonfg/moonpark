@@ -189,7 +189,11 @@ def sites_in_latlon_rect(
     lon_min: float,
     lon_max: float,
 ) -> list[tuple[Site, float, float, int, int, int]]:
-    """Cap cells whose 1 km footprint intersects the user rectangle (oracle index scan; D-3e10, D-c898)."""
+    """Cap cells whose 1 km footprint intersects the user rectangle.
+
+    Candidates: center lat criba (``lat_pad``) then ``_footprint_intersects_latlon_rect``
+    on each (D-3e10, D-c898). No center lon criba in production (D-20261123-pj-6bf5).
+    """
     if not cap_index_available():
         return []
     lo_lat, hi_lat = sorted((float(lat_min), float(lat_max)))
@@ -205,12 +209,8 @@ def sites_in_latlon_rect(
     row = table.column("row").to_numpy()
     lat_pad = 0.05  # footprint slack (1 km scale near the cap)
     lat_mask = (lat >= lo_lat - lat_pad) & (lat <= hi_lat + lat_pad)
-    if width >= 360.0:
-        lon_mask = np.ones_like(lat, dtype=bool)
-    else:
-        lon_pad = 2.0
-        lon_mask = (lon - lo_lon) % 360.0 <= (width + lon_pad)
-    cand = np.flatnonzero(lat_mask & lon_mask)
+    # per D-20261123-pj-6bf5: lat_mask-only candidates (lon_pad / lon_mask removed).
+    cand = np.flatnonzero(lat_mask)
     out: list[tuple[Site, float, float, int, int, int]] = []
     for i in cand:
         la, lo = float(lat[i]), float(lon[i])

@@ -22,7 +22,7 @@ Close the seven reliability themes from the independent senior-level audit (geog
 
 ## Pending checkpoint
 
-None. (Implementation approved 2026-11-22: ADRs committed; /implementa in progress.)
+None. (Implement approved 2026-11-23: drop lon_pad /implementa.)
 
 ## Decide closure (item 1 policy)
 
@@ -84,6 +84,8 @@ None. (Implementation approved 2026-11-22: ADRs committed; /implementa in progre
 **Three auditor closures (2026-11-22):**
 - D-20261122-pj-a64b — validation_full green semantics (local science vs CI missing-data)
 - D-20261122-pj-c1ed — measure remaining cribas (precision+time) before keep/drop
+- D-20261123-pj-3f81 — keep quadrant estimate; metric order feasible→RMSE→max|e|
+- D-20261123-pj-6bf5 — drop lon_pad criba; keep lat_pad pending broader bench
 
 ## Auto decisions
 
@@ -130,6 +132,8 @@ None. (Implementation approved 2026-11-22: ADRs committed; /implementa in progre
 2. `validation_full` → force scientific run when inputs exist — four S12 scripts + docs claim text; force-science unit tests green.
 3. Criba investigation — `scripts/bench_selector_cribas.py`; production keep/drop **not** changed (`D-c1ed` deferred). Bench (cap on disk): auditor probe FAIL (`footprint` true, `lon_mask` false); lon_mask drives omissions (e.g. auditor-lon100: 23 prod vs oracle).
 Parent re-ran: portability + reliability + two force-science tests → 10 passed.
+
+**Build (2026-11-23 /implementa D-6bf5):** removed production `lon_mask`/`lon_pad` from `sites_in_latlon_rect`; kept `lat_mask`; auditor completeness test green. Parent: `pytest tests/test_cap_index.py` → 8 passed.
 
 ## Audit
 

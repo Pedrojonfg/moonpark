@@ -1,10 +1,10 @@
 """Benchmark remaining ``sites_in_latlon_rect`` cribas (precision + wall time).
 
-# per D-20261122-pj-c1ed
+# per D-20261123-pj-6bf5 (investigation harness from D-20261122-pj-c1ed)
 
-Inventory measured against production ``moonpark/horizon/cap_index.py``:
-center-based ``lat_mask`` (lat_pad=0.05), ``lon_mask`` (lon_pad=2.0 on non-wrap rects),
-and ``_footprint_intersects_latlon_rect`` membership on candidates.
+Production ``moonpark/horizon/cap_index.py`` (D-20261123-pj-6bf5): center ``lat_mask``
+(lat_pad=0.05) then ``_footprint_intersects_latlon_rect`` on candidates (no lon_pad).
+This harness still measures optional ``lon_mask`` (lon_pad=2.0) for lat-only studies.
 
 Usage:
     python scripts/bench_selector_cribas.py [--json-out PATH] [--reps N]
@@ -211,7 +211,7 @@ def _auditor_probe(lat: np.ndarray, lon: np.ndarray) -> dict[str, Any]:
         nearest = {"lat": la, "lon": lo, "row": row}
         in_prod_nearest = _cell_key(la, lo) in prod_keys
 
-    # If footprint touches but lon mask excludes center, that is the known criba gap (fail completeness).
+    # Historical lon_mask criba gap (not applied in production after D-20261123-pj-6bf5).
     lon_mask_gap = intersects and not lon_ok
     prod_has_touch = probe_key in prod_keys or bool(
         row is not None
@@ -232,7 +232,7 @@ def _auditor_probe(lat: np.ndarray, lon: np.ndarray) -> dict[str, Any]:
             "lon_mask_gap_when_footprint_intersects": lon_mask_gap,
             "production_returns_touching_cell": prod_has_touch,
         },
-        "pass": not lon_mask_gap and (not intersects or prod_has_touch),
+        "pass": not intersects or prod_has_touch,
     }
 
 
@@ -257,6 +257,9 @@ def _analyze_rect(
     lon_cand = np.flatnonzero(lon_mask)
     both_cand = np.flatnonzero(lat_mask & lon_mask)
 
+    lat_only_idx = _both_masks_then_intersect(
+        lat, lon, lat_mask, np.ones_like(lat, dtype=bool), lo_lat, hi_lat, lo_lon, width
+    )
     both_idx = _both_masks_then_intersect(lat, lon, lat_mask, lon_mask, lo_lat, hi_lat, lo_lon, width)
     production = sites_in_latlon_rect(lo_lat, hi_lat, lo_lon, lo_lon + width)
     prod_keys = _keys_from_sites(production)
@@ -266,6 +269,7 @@ def _analyze_rect(
         "lat_mask_candidates": int(len(lat_cand)),
         "lon_mask_candidates": int(len(lon_cand)),
         "both_mask_candidates": int(len(both_cand)),
+        "lat_mask_then_intersect_count": len(lat_only_idx),
         "both_masks_then_intersect_count": len(both_idx),
         "production_count": len(prod_keys),
         "omissions_vs_lat_mask_candidates": _omission_report(
@@ -277,6 +281,9 @@ def _analyze_rect(
         "omissions_vs_both_mask_candidates": _omission_report(
             lat, lon, oracle_keys, _keys_from_indices(lat, lon, both_cand)
         ),
+        "omissions_vs_lat_mask_then_intersect": _omission_report(
+            lat, lon, oracle_keys, _keys_from_indices(lat, lon, lat_only_idx)
+        ),
         "omissions_vs_both_masks_intersect": _omission_report(
             lat, lon, oracle_keys, _keys_from_indices(lat, lon, both_idx)
         ),
@@ -287,6 +294,12 @@ def _analyze_rect(
         "full_oracle_scan_s": _median_timed(
             reps,
             lambda: _oracle_indices(lat, lon, lo_lat, hi_lat, lo_lon, width),
+        ),
+        "lat_mask_then_intersect_s": _median_timed(
+            reps,
+            lambda: _both_masks_then_intersect(
+                lat, lon, lat_mask, np.ones_like(lat, dtype=bool), lo_lat, hi_lat, lo_lon, width
+            ),
         ),
         "both_masks_then_intersect_s": _median_timed(
             reps,
@@ -314,7 +327,7 @@ def _analyze_rect(
 
 
 def _print_summary(report: dict[str, Any]) -> None:
-    print("bench_selector_cribas (D-20261122-pj-c1ed)")
+    print("bench_selector_cribas (D-20261123-pj-6bf5)")
     print(f"index_rows: {report['index_rows']}")
     print(f"reps (median wall time): {report['reps']}")
     probe = report["auditor_probe"]
@@ -363,7 +376,7 @@ def _print_summary(report: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Measure selector cribas (D-20261122-pj-c1ed).")
+    ap = argparse.ArgumentParser(description="Measure selector cribas (D-20261123-pj-6bf5).")
     ap.add_argument("--json-out", type=Path, default=None, help="Write full JSON report to PATH.")
     ap.add_argument("--reps", type=int, default=5, help="Timing repetitions (median reported).")
     ap.add_argument(
@@ -387,12 +400,13 @@ def main() -> int:
     probe = _auditor_probe(lat, lon)
 
     report: dict[str, Any] = {
-        "decision": "D-20261122-pj-c1ed",
+        "decision": "D-20261123-pj-6bf5",
         "index_rows": n,
         "reps": args.reps,
         "cribas": {
             "lat_pad_center": LAT_PAD,
             "lon_pad_center": LON_PAD,
+            "lon_pad_center_in_production": False,
             "footprint_fn": "_footprint_intersects_latlon_rect",
         },
         "auditor_probe": probe,
