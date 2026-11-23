@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import resource
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -100,21 +99,72 @@ def config_snapshot() -> dict[str, Any]:
 
 
 def process_rss_mb() -> float:
-    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    # Linux: kB; macOS: bytes (engine targets desktop bundle; Linux CI is the common case).
-    if rss > 10_000_000:
-        return rss / (1024 * 1024)
-    return rss / 1024
+    # per D-20261122-pj-f3a8: portable RSS when POSIX ``resource`` is absent.
+    try:
+        import resource as _resource
+
+        rss = _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss
+        # Linux: kB; macOS: bytes (engine targets desktop bundle; Linux CI is the common case).
+        if rss > 10_000_000:
+            return rss / (1024 * 1024)
+        return rss / 1024
+    except ImportError:
+        pass
+    except OSError:
+        pass
+
+    try:
+        import ctypes
+        import sys
+
+        if sys.platform == "win32":
+            class _PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                _fields_ = [
+                    ("cb", ctypes.c_ulong),
+                    ("PageFaultCount", ctypes.c_ulong),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t),
+                ]
+
+            counters = _PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(_PROCESS_MEMORY_COUNTERS)
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            psapi = ctypes.WinDLL("psapi", use_last_error=True)
+            if psapi.GetProcessMemoryInfo(kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+                return counters.WorkingSetSize / (1024 * 1024)
+    except (ImportError, AttributeError, OSError):
+        pass
+
+    try:
+        with open("/proc/self/status", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    kb = int(line.split()[1])
+                    return kb / 1024
+    except OSError:
+        pass
+
+    # Last resort when no probe is available (e.g. minimal stub environments).
+    return 0.0
 
 
 def check_session_pressure(*, evict_pcp) -> None:
     """Raise ValueError(session_memory_pressure) when over budget after eviction."""
-    budget = session_budget_mb()
-    if process_rss_mb() <= budget:
+    import moonpark
+
+    mod = moonpark.session_memory
+    budget = mod.session_budget_mb()
+    if mod.process_rss_mb() <= budget:
         return
     evict_pcp()
-    if process_rss_mb() <= budget:
+    if mod.process_rss_mb() <= budget:
         return
     raise ValueError(
-        f"session memory pressure: RSS ~{process_rss_mb():.0f} MB exceeds budget {budget} MB"
+        f"session memory pressure: RSS ~{mod.process_rss_mb():.0f} MB exceeds budget {budget} MB"
     )

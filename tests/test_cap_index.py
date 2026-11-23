@@ -83,3 +83,46 @@ def test_latlon_rect_filters_by_longitude() -> None:
         assert _footprint_intersects_latlon_rect(
             site.lat_deg, site.lon_deg, -90.0, -80.0, lo, width
         )
+
+
+def test_auditor_rect_includes_west_edge_footprint_cells() -> None:
+    """Auditor rect lon 100-101, lat -85.6..-84.4 must not lose west-edge footprint cells.
+
+    Production ``sites_in_latlon_rect`` must equal every index cell whose 1 km footprint
+    intersects the rect; the center ``lon_pad`` criba (east-only) must not drop cells whose
+    center lon is just west of ``lon_min``. Reference: lat_pad-only prefilter (lat_pad keep,
+    lon_pad removed_from_production) + ``_footprint_intersects_latlon_rect``.
+    # per D-20261123-pj-6bf5 (D-3e10)
+    """
+    import numpy as np
+
+    from moonpark.horizon.cap_index import _footprint_intersects_latlon_rect, _load_index
+
+    lo_lat, hi_lat, lo_lon, hi_lon = -85.6, -84.4, 100.0, 101.0
+    width = hi_lon - lo_lon
+    lat_pad = 0.05
+
+    table = _load_index()
+    lat = table.column("lat").to_numpy()
+    lon = table.column("lon").to_numpy()
+    cand = np.flatnonzero((lat >= lo_lat - lat_pad) & (lat <= hi_lat + lat_pad))
+    expected = {
+        (round(float(lat[i]), 6), round(float(lon[i]), 6))
+        for i in cand
+        if _footprint_intersects_latlon_rect(float(lat[i]), float(lon[i]), lo_lat, hi_lat, lo_lon, width)
+    }
+    assert expected, "reference scan found no cells; test setup invalid"
+
+    got = _cell_keys(sites_in_latlon_rect(lo_lat, hi_lat, lo_lon, hi_lon))
+    assert got, "production returned no cells for auditor rect"
+
+    # Centers west of lon_min that still touch the rect via footprint (the bug class).
+    west_only = {k for k in expected if (k[1] - lo_lon) % 360.0 > 180.0}
+    assert west_only, "auditor rect has no west-of-lon_min footprint cells in index; adjust rect"
+
+    missing = expected - got
+    assert not missing, (
+        f"production dropped {len(missing)} footprint-intersecting cells "
+        f"(west-edge dropped: {len(west_only - got)}); sample={sorted(missing)[:5]}"
+    )
+    assert got == expected, f"extra production cells: {sorted(got - expected)[:5]}"

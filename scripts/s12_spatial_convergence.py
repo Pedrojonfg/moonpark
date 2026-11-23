@@ -99,6 +99,8 @@ def main() -> int:
     p.add_argument("--checkpoint", type=Path, default=None)
     p.add_argument("--resume", action="store_true")
     args = p.parse_args()
+    # per D-20261122-pj-a64b: --validation-full must force the scientific run when inputs exist
+    args.force_run = args.force_run or args.validation_full
 
     sys.path.insert(0, str(ROOT))
     from scripts.s12_sites import SITES

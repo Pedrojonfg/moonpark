@@ -12,4 +12,4 @@ Per OS matrix leg (linux, windows, macos), after `deploy/build-desktop.sh`:
 
 **Platform claims:** README and release notes may call Linux or Windows *supported* only when the matching leg is green on the release tag. **macOS:** the installer may ship when the macOS build is green; do **not** claim maintainer-tested Mac hardware — CI build + engine smoke on `macos-latest` is not the same as a user Mac walkthrough (`D-a91c`).
 
-Heavy S12 validation uses marker `validation_full` and workflow **Validation full** (`.github/workflows/validation-full.yml`); default CI excludes those tests (`D-b591`).
+Heavy S12 validation uses marker `validation_full` and workflow **Validation full** (`.github/workflows/validation-full.yml`); default CI excludes those tests (`D-b591`). Per `D-20261122-pj-a64b`: with heavy data on disk, `pytest -m validation_full` / `--validation-full` means the scientific compare actually ran (same as `--force-run`); the GitHub **Validation full** job without heavy data must fail (exit 2), which is not a science pass; a green test that only asserts exit 2 without data proves the missing-data path only.
